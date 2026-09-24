@@ -1,6 +1,6 @@
 export type ContractType = 'uop' | 'zlecenie'
 export type Position = 'manager' | 'cashier'
-export type ExtraRole = 'managerShift1' | 'managerShift2'
+export type ExtraRole = 'managerShift1' | 'managerShift2' | 'cashierEligible'
 export type RequestType = 'avoid' | 'prefer'
 export type ShiftType = 'auto' | 'manual'
 export type BalanceBucket = 'first' | 'mid' | 'second'

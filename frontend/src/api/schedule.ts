@@ -9,6 +9,8 @@ export const generateSchedule = (monthValue: string) => post<ScheduleType>(`/sch
 
 export const approveSchedule = (monthValue: string) => post<ScheduleType>(`/schedule/${monthValue}/approve`)
 
+export const clearSchedule = (monthValue: string) => post<ScheduleType>(`/schedule/${monthValue}/clear`)
+
 export const getValidation = (monthValue: string) => get<ValidationResultType>(`/schedule/${monthValue}/validation`)
 
 export const getCellOptions = (monthValue: string, employeeId: string, date: string) =>

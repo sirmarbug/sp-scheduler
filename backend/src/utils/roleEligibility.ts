@@ -17,7 +17,10 @@ export function canFillRole(
   role: 'manager' | 'cashier'
 ): boolean {
   if (role === 'cashier') {
-    return employee.position === 'cashier'
+    return (
+      employee.position === 'cashier' ||
+      (employee.position === 'manager' && employee.extraRoles.includes('cashierEligible'))
+    )
   }
 
   if (employee.position === 'manager') {

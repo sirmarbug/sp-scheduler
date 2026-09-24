@@ -17,9 +17,15 @@ const form = ref<CreateEmployeeRequest>({ name: '', contractType: 'uop', positio
 
 const contractTypeOptions: ContractType[] = ['uop', 'zlecenie']
 const positionOptions: Position[] = ['manager', 'cashier']
-const extraRoleOptions: ExtraRole[] = ['managerShift1', 'managerShift2']
 
-const canHaveExtraRoles = computed(() => form.value.position === 'cashier')
+const canHaveExtraRoles = computed(() => form.value.position === 'cashier' || form.value.position === 'manager')
+const extraRoleOptionsForPosition = computed<ExtraRole[]>(() =>
+  form.value.position === 'cashier' ? ['managerShift1', 'managerShift2'] : ['cashierEligible']
+)
+
+function handlePositionChange() {
+  form.value.extraRoles = []
+}
 
 function openCreateForm() {
   editingId.value = null
@@ -89,12 +95,17 @@ onMounted(() => {
           <q-form @submit.prevent="submitForm">
             <q-input v-model="form.name" :label="t('employees.form.name')" />
             <q-select v-model="form.contractType" :options="contractTypeOptions" :label="t('employees.form.contractType')" />
-            <q-select v-model="form.position" :options="positionOptions" :label="t('employees.form.position')" />
+            <q-select
+              v-model="form.position"
+              :options="positionOptions"
+              :label="t('employees.form.position')"
+              @update:model-value="handlePositionChange"
+            />
             <q-select
               v-if="canHaveExtraRoles"
               v-model="form.extraRoles"
               multiple
-              :options="extraRoleOptions"
+              :options="extraRoleOptionsForPosition"
               :label="t('employees.form.extraRoles')"
             />
             <q-btn class="q-mt-md" type="submit" color="primary" :label="t('common.save')" />

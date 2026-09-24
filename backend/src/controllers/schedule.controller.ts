@@ -41,6 +41,11 @@ export const scheduleController = {
     res.json(schedule)
   },
 
+  async clear(req: Request<{ monthValue: string }>, res: Response) {
+    const schedule = await scheduleService.clear(req.params.monthValue)
+    res.json(schedule)
+  },
+
   async getCellOptions(req: Request<{ monthValue: string }, unknown, unknown, CellOptionsQuery>, res: Response) {
     const { monthConfig, employees, requests, assignments } = await scheduleService.loadMonthData(req.params.monthValue)
     const options = getAvailableOptions(req.query.employeeId, req.query.date, monthConfig, employees, requests, assignments)

@@ -27,6 +27,7 @@ enum Position {
 enum ExtraRole {
   managerShift1
   managerShift2
+  cashierEligible
 }
 
 enum RequestType {

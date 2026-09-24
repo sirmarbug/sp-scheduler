@@ -71,6 +71,21 @@ export class ScheduleService {
     return schedule
   }
 
+  async clear(monthValue: string) {
+    const schedule = await this.prisma.schedule.findUnique({ where: { monthValue } })
+    if (!schedule) {
+      throw new AppError('schedule.notFound', 404, 'Grafik dla tego miesiąca nie istnieje')
+    }
+    if (schedule.status === 'approved') {
+      throw new AppError('schedule.alreadyApproved', 422, 'Nie można wyczyścić zatwierdzonego grafiku')
+    }
+
+    return this.prisma.schedule.update({
+      where: { monthValue },
+      data: { assignments: [], diagnostics: null, generationAttempts: [], status: 'draft' },
+    })
+  }
+
   private buildDiagnostics(
     monthConfig: MonthConfigForValidation,
     assignments: AssignmentForValidation[],

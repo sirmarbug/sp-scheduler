@@ -49,7 +49,7 @@ export const HARD_RULE_DESCRIPTIONS = [
   'Jedna zmiana dziennie na pracownika.',
   'Brak pracy w dniu zamkniętym.',
   'Respektowanie blokad (avoid).',
-  'Rolę kasjera pełni wyłącznie pracownik ze stanowiskiem cashier; rolę kierownika pełni manager, albo cashier z extraRole managerShift1 (tylko bucket=first/id=morning), albo managerShift2 (tylko bucket=second/id=evening).',
+  'Rolę kasjera pełni pracownik ze stanowiskiem cashier, albo manager z extraRole cashierEligible (na każdej zmianie); rolę kierownika pełni manager, albo cashier z extraRole managerShift1 (tylko bucket=first/id=morning), albo managerShift2 (tylko bucket=second/id=evening).',
   'Maksymalnie 6 dni pracy w tygodniu ISO na pracownika.',
   'Suma godzin UoP w miesiącu nie może przekroczyć celu godzinowego (docelowo równa).',
   'Liczba przydzielonych osób w danej roli na zmianie nie może przekroczyć requiredRoles.',

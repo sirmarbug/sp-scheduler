@@ -77,6 +77,11 @@
     "title": "Grafik",
     "generate": "Generuj grafik",
     "approve": "Zatwierdź",
+    "clear": "Wyczyść",
+    "confirmClear": {
+      "title": "Wyczyścić grafik?",
+      "message": "Wszystkie przypisania zmian w tym miesiącu zostaną usunięte. Tej operacji nie można cofnąć."
+    },
     "generating": "Generowanie grafiku przez AI...",
     "noOptions": "Brak dopuszczalnych opcji dla tego pracownika i dnia",
     "unassign": "Usuń przypisanie",

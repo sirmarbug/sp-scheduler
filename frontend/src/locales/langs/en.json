@@ -77,6 +77,11 @@
     "title": "Schedule",
     "generate": "Generate schedule",
     "approve": "Approve",
+    "clear": "Clear",
+    "confirmClear": {
+      "title": "Clear schedule?",
+      "message": "All shift assignments for this month will be removed. This action cannot be undone."
+    },
     "generating": "Generating schedule with AI...",
     "noOptions": "No allowed options for this employee and day",
     "unassign": "Remove assignment",

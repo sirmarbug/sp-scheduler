@@ -29,6 +29,11 @@ scheduleRouter.post(
   validate({ params: monthValueParamsSchema }),
   asyncHandler(scheduleController.approve)
 )
+scheduleRouter.post(
+  '/:monthValue/clear',
+  validate({ params: monthValueParamsSchema }),
+  asyncHandler(scheduleController.clear)
+)
 scheduleRouter.get(
   '/:monthValue/cell-options',
   validate({ params: monthValueParamsSchema, query: cellOptionsQuerySchema }),

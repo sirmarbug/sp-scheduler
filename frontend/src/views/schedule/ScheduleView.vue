@@ -6,6 +6,7 @@ import ScheduleCellEditor from '@/components/schedule/ScheduleCellEditor.vue'
 import ScheduleGrid from '@/components/schedule/ScheduleGrid.vue'
 import ValidationPanel from '@/components/schedule/ValidationPanel.vue'
 import { useCellOptions } from '@/composables/useCellOptions'
+import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import dayjs from '@/plugins/dayjs'
 import { useEmployeesStore } from '@/stores/employees'
 import { useMonthConfigStore } from '@/stores/month-config'
@@ -25,11 +26,14 @@ const { current: schedule, generating } = storeToRefs(scheduleStore)
 const { result: validationResult } = storeToRefs(validationStore)
 
 const cellOptions = useCellOptions()
+const confirmDialog = useConfirmDialog()
 const monthValue = ref(dayjs().format('YYYY-MM'))
 
 const hasCurrentAssignment = computed(() =>
   !!schedule.value?.assignments.some((a) => a.employeeId === cellOptions.employeeId.value && a.date === cellOptions.date.value)
 )
+
+const isApproved = computed(() => schedule.value?.status === 'approved')
 
 const shiftLabels = computed(() => {
   const labels: Record<string, string> = {}
@@ -58,6 +62,12 @@ async function handleApprove() {
   await scheduleStore.approve(monthValue.value)
 }
 
+async function handleClear() {
+  const confirmed = await confirmDialog.open(t('schedule.confirmClear.title'), t('schedule.confirmClear.message'))
+  if (!confirmed) return
+  await scheduleStore.clear(monthValue.value)
+}
+
 function handleCellClick(employeeId: string, date: string) {
   cellOptions.open(monthValue.value, employeeId, date)
 }
@@ -82,6 +92,7 @@ onMounted(loadAll)
       <input v-model="monthValue" type="month" @change="loadAll" />
       <q-btn color="primary" :loading="generating" :label="t('schedule.generate')" @click="handleGenerate" />
       <q-btn color="secondary" :label="t('schedule.approve')" @click="handleApprove" />
+      <q-btn color="negative" flat :disable="isApproved" :label="t('schedule.clear')" @click="handleClear" />
     </div>
 
     <div v-if="generating">{{ t('schedule.generating') }}</div>
@@ -105,6 +116,17 @@ onMounted(loadAll)
       @select="handleSelectOption"
       @unassign="handleUnassign"
     />
+
+    <q-dialog v-model="confirmDialog.visible.value">
+      <q-card>
+        <q-card-section class="text-h6">{{ confirmDialog.title.value }}</q-card-section>
+        <q-card-section>{{ confirmDialog.message.value }}</q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="t('common.cancel')" @click="confirmDialog.reject" />
+          <q-btn flat color="negative" :label="t('common.delete')" @click="confirmDialog.confirm" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 

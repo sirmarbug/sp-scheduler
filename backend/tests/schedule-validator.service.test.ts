@@ -90,6 +90,35 @@ describe('ScheduleValidatorService', () => {
     expect(result.issues.some((i) => i.includes('nie ma uprawnień do roli'))).toBe(true)
   })
 
+  it('flags a manager without cashierEligible assigned as cashier', () => {
+    const monthConfig = buildMonthConfig([buildDay({ date: '2024-10-01', shifts: [buildShift({ id: 'morning', balanceBucket: 'first' })] })])
+    const employees = [buildEmployee({ id: 'emp-1', position: 'manager', extraRoles: [] })]
+    const assignments = [buildAssignment({ employeeId: 'emp-1', date: '2024-10-01', shiftId: 'morning', role: 'cashier' })]
+
+    const result = validate(assignments, monthConfig, employees, [])
+
+    expect(result.issues.some((i) => i.includes('nie ma uprawnień do roli cashier'))).toBe(true)
+  })
+
+  it('allows a manager with cashierEligible to be cashier on any shift bucket', () => {
+    const monthConfig = buildMonthConfig([
+      buildDay({
+        date: '2024-10-01',
+        shifts: [
+          buildShift({ id: 'morning', balanceBucket: 'first' }),
+          buildShift({ id: 'mid', balanceBucket: 'mid' }),
+          buildShift({ id: 'evening', balanceBucket: 'second' }),
+        ],
+      }),
+    ])
+    const employees = [buildEmployee({ id: 'emp-1', position: 'manager', extraRoles: ['cashierEligible'] })]
+    const assignments = [buildAssignment({ employeeId: 'emp-1', date: '2024-10-01', shiftId: 'mid', role: 'cashier' })]
+
+    const result = validate(assignments, monthConfig, employees, [])
+
+    expect(result.issues.some((i) => i.includes('nie ma uprawnień do roli'))).toBe(false)
+  })
+
   it('flags more than 6 work days in one ISO week', () => {
     const dates = ['2024-09-30', '2024-10-01', '2024-10-02', '2024-10-03', '2024-10-04', '2024-10-05', '2024-10-06']
     const monthConfig = buildMonthConfig(dates.map((date) => buildDay({ date })))

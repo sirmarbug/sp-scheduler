@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { approveSchedule, generateSchedule, getSchedule, updateCell } from '@/api/schedule'
+import { approveSchedule, clearSchedule, generateSchedule, getSchedule, updateCell } from '@/api/schedule'
 import { useValidationStore } from '@/stores/validation'
 import type { CellOptionType, ScheduleType } from '@/types'
 
@@ -39,6 +39,16 @@ export const useScheduleStore = defineStore('schedule', () => {
     return true
   }
 
+  async function clear(monthValue: string) {
+    const { data, request, isFailed } = clearSchedule(monthValue)
+    await request()
+    if (isFailed.value || !data.value) return false
+    current.value = data.value
+    const validationStore = useValidationStore()
+    await validationStore.refresh(monthValue)
+    return true
+  }
+
   async function updateAssignment(monthValue: string, employeeId: string, date: string, option: CellOptionType | null) {
     const { data, request, isFailed } = updateCell(monthValue, employeeId, date, option)
     await request()
@@ -49,5 +59,5 @@ export const useScheduleStore = defineStore('schedule', () => {
     return true
   }
 
-  return { current, loading, generating, fetchByMonthValue, generate, approve, updateAssignment }
+  return { current, loading, generating, fetchByMonthValue, generate, approve, clear, updateAssignment }
 })

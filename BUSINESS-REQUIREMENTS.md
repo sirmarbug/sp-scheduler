@@ -19,7 +19,7 @@ Aplikacja tworzy **miesięczny grafik zmian** dla jednej lokalizacji (sklep) z d
 | **Pracownik** | Osoba z: imieniem, typem umowy, stanowiskiem, opcjonalnymi rolami dodatkowymi. |
 | **Typ umowy** | `UoP` (umowa o pracę — ma sztywny miesięczny cel godzinowy) lub `zlecenie` (bez celu godzinowego, elastyczne). |
 | **Stanowisko** | `manager` (kierownik) lub `cashier` (kasjer). |
-| **Rola dodatkowa** | `managerShift1` / `managerShift2` — pozwala kasjerowi pełnić funkcję kierownika na konkretnej zmianie (odpowiednio: pierwszej/porannej lub drugiej/wieczornej). |
+| **Rola dodatkowa** | `managerShift1` / `managerShift2` — pozwala kasjerowi pełnić funkcję kierownika na konkretnej zmianie (odpowiednio: pierwszej/porannej lub drugiej/wieczornej). `cashierEligible` — pozwala managerowi pełnić funkcję kasjera na każdej zmianie, bez ograniczenia do konkretnego bucketu. |
 | **Zmiana** | Blok czasowy w dniu z: godziną startu/końca, wymaganą liczbą osób per rola, "bucketem balansu", typem (`auto`/`manual`). |
 | **Domyślne zmiany** | 1 zmiana (07:00–15:00, "first"), Środek dnia (12:00–20:00, "mid"), 2 zmiana (13:00–21:15, "second"). Konfigurowalne per dzień. |
 | **Bucket balansu** | `first` / `mid` / `second` — używany do liczenia równowagi między zmianami wcześniejszymi i późniejszymi u danego pracownika. |
@@ -82,7 +82,7 @@ Grafik jest **niepoprawny**, jeśli którakolwiek z poniższych reguł jest zła
 2. **Brak pracy w dniu zamkniętym.** Jeśli dzień jest oznaczony jako zamknięty, nie może mieć żadnych przypisań.
 3. **Respektowanie blokad (`avoid`).** Pracownik z wnioskiem `avoid` na dany dzień/zmianę (lub `shiftId: "all"`) nigdy nie może zostać tam przydzielony.
 4. **Uprawnienia do roli:**
-   - rolę **kasjera** może pełnić wyłącznie pracownik ze stanowiskiem `cashier`;
+   - rolę **kasjera** może pełnić pracownik ze stanowiskiem `cashier` (zawsze), **albo** manager z rolą dodatkową `cashierEligible` — na każdej zmianie, bez ograniczenia do bucketu. Manager bez tej roli dodatkowej nie może pełnić funkcji kasjera na żadnej zmianie;
    - rolę **kierownika** może pełnić: pracownik ze stanowiskiem `manager` (zawsze), **albo** kasjer z rolą dodatkową `managerShift1` — ale tylko na zmianie o buckecie `first` (lub zmianie o id `morning`), **albo** kasjer z rolą dodatkową `managerShift2` — tylko na zmianie o buckecie `second` (lub id `evening`). Kasjer bez odpowiedniej roli dodatkowej nie może pełnić funkcji kierownika na żadnej zmianie, w tym na zmianie "mid" (środek dnia).
 5. **Maksymalnie 6 dni pracy w tygodniu ISO** (poniedziałek–niedziela) na pracownika.
 6. **Limit godzin dla UoP.** Suma godzin przydzielonych pracownikowi z umową UoP w danym miesiącu **nie może przekroczyć** celu godzinowego (target hours). Docelowo (w idealnym grafiku) powinna być **równa** temu celowi — patrz reguły miękkie.

@@ -3,7 +3,7 @@ import { registry } from '../docs/registry.js'
 
 export const contractTypeSchema = z.enum(['uop', 'zlecenie'])
 export const positionSchema = z.enum(['manager', 'cashier'])
-export const extraRoleSchema = z.enum(['managerShift1', 'managerShift2'])
+export const extraRoleSchema = z.enum(['managerShift1', 'managerShift2', 'cashierEligible'])
 
 export const createEmployeeSchema = registry.register(
   'CreateEmployeeRequest',
