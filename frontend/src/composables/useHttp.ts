@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 
 const client = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: 15000,
+  timeout: 360000,
   withCredentials: true,
 })
 

@@ -4,7 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useConfirmDialog } from '@/composables/useConfirmDialog'
 import { useEmployeesStore } from '@/stores/employees'
-import type { ContractType, CreateEmployeeRequest, ExtraRole, Position } from '@/types'
+import type { ContractType, CreateEmployeeRequest, EmployeeType, ExtraRole, Position } from '@/types'
 
 const { t } = useI18n()
 const employeesStore = useEmployeesStore()
@@ -12,6 +12,7 @@ const { employees, loading } = storeToRefs(employeesStore)
 const confirmDialog = useConfirmDialog()
 
 const formVisible = ref(false)
+const editingId = ref<string | null>(null)
 const form = ref<CreateEmployeeRequest>({ name: '', contractType: 'uop', position: 'cashier', extraRoles: [] })
 
 const contractTypeOptions: ContractType[] = ['uop', 'zlecenie']
@@ -21,12 +22,26 @@ const extraRoleOptions: ExtraRole[] = ['managerShift1', 'managerShift2']
 const canHaveExtraRoles = computed(() => form.value.position === 'cashier')
 
 function openCreateForm() {
+  editingId.value = null
   form.value = { name: '', contractType: 'uop', position: 'cashier', extraRoles: [] }
   formVisible.value = true
 }
 
+function openEditForm(employee: EmployeeType) {
+  editingId.value = employee.id
+  form.value = {
+    name: employee.name,
+    contractType: employee.contractType,
+    position: employee.position,
+    extraRoles: employee.extraRoles,
+  }
+  formVisible.value = true
+}
+
 async function submitForm() {
-  const success = await employeesStore.add(form.value)
+  const success = editingId.value
+    ? await employeesStore.update(editingId.value, form.value)
+    : await employeesStore.add(form.value)
   if (success) formVisible.value = false
 }
 
@@ -58,7 +73,10 @@ onMounted(() => {
           <q-item-label caption>{{ employee.contractType }} · {{ employee.position }}</q-item-label>
         </q-item-section>
         <q-item-section side>
-          <q-btn flat round icon="delete" @click="handleDelete(employee.id)" />
+          <div class="row items-center q-gutter-x-xs">
+            <q-btn flat round icon="edit" @click="openEditForm(employee)" />
+            <q-btn flat round icon="delete" @click="handleDelete(employee.id)" />
+          </div>
         </q-item-section>
       </q-item>
     </q-list>
