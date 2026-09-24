@@ -7,11 +7,13 @@ interface ScheduleCellEditorProps {
   loading: boolean
   options: CellOptionType[]
   hasCurrentAssignment: boolean
+  shiftLabels: Record<string, string>
 }
 
 const props = withDefaults(defineProps<ScheduleCellEditorProps>(), {
   loading: false,
   hasCurrentAssignment: false,
+  shiftLabels: () => ({}),
 })
 
 const emit = defineEmits<{
@@ -39,7 +41,7 @@ function handleUnassign() {
         <div v-if="!loading && props.options.length === 0">{{ t('schedule.noOptions') }}</div>
         <q-list v-else bordered>
           <q-item v-for="option in props.options" :key="`${option.shiftId}-${option.role}`" clickable @click="handleSelect(option)">
-            <q-item-section>{{ option.shiftId }} — {{ option.role }}</q-item-section>
+            <q-item-section>{{ props.shiftLabels[option.shiftId] ?? option.shiftId }} — {{ option.role }}</q-item-section>
           </q-item>
         </q-list>
       </q-card-section>

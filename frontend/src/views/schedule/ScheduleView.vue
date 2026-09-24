@@ -31,6 +31,16 @@ const hasCurrentAssignment = computed(() =>
   !!schedule.value?.assignments.some((a) => a.employeeId === cellOptions.employeeId.value && a.date === cellOptions.date.value)
 )
 
+const shiftLabels = computed(() => {
+  const labels: Record<string, string> = {}
+  for (const day of monthConfig.value?.days ?? []) {
+    for (const shift of day.shifts) {
+      labels[shift.id] = shift.label
+    }
+  }
+  return labels
+})
+
 async function loadAll() {
   await Promise.all([
     employeesStore.fetchAll(),
@@ -91,6 +101,7 @@ onMounted(loadAll)
       :loading="cellOptions.loading.value"
       :options="cellOptions.options.value"
       :has-current-assignment="hasCurrentAssignment"
+      :shift-labels="shiftLabels"
       @select="handleSelectOption"
       @unassign="handleUnassign"
     />

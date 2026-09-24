@@ -25,7 +25,9 @@ const assignmentByKey = computed(() => {
 function cellLabel(employeeId: string, date: string) {
   const assignment = assignmentByKey.value.get(`${employeeId}|${date}`)
   if (!assignment) return ''
-  return `${assignment.shiftId} (${assignment.role})`
+  const day = props.days.find((d) => d.date === date)
+  const shift = day?.shifts.find((s) => s.id === assignment.shiftId)
+  return `${shift?.label ?? assignment.shiftId} (${assignment.role})`
 }
 
 function handleClick(employeeId: string, date: string) {
