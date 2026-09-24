@@ -14,7 +14,8 @@
   "validation": {
     "required": "This field is required",
     "email": "Enter a valid email address",
-    "minLength": "Minimum length is {min} characters"
+    "minLength": "Minimum length is {min} characters",
+    "time": "Enter a time in HH:mm format"
   },
   "auth": {
     "login": {
@@ -49,7 +50,25 @@
   },
   "monthConfig": {
     "title": "Month configuration",
-    "activeShifts": "{active} / {total} shifts active"
+    "activeShifts": "{active} / {total} shifts active",
+    "addShift": "Add shift",
+    "shiftEditor": {
+      "createTitle": "New shift",
+      "editTitle": "Edit shift",
+      "label": "Label",
+      "shortLabel": "Short label",
+      "start": "Start time",
+      "end": "End time",
+      "balanceBucket": "Balance bucket",
+      "type": "Type",
+      "requiredManagerCount": "Required manager count",
+      "requiredCashierCount": "Required cashier count",
+      "enabled": "Enabled"
+    },
+    "confirmDeleteShift": {
+      "title": "Delete shift",
+      "message": "Deleting shift \"{label}\" will also remove related schedule assignments. Continue?"
+    }
   },
   "requests": {
     "title": "Availability requests"

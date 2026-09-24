@@ -35,6 +35,18 @@ export interface ShiftDtoType {
   requiredCashierCount: number
 }
 
+export interface UpsertShiftRequest {
+  label: string
+  start: string
+  end: string
+  shortLabel: string
+  balanceBucket: BalanceBucket
+  type: ShiftType
+  enabled: boolean
+  requiredManagerCount: number
+  requiredCashierCount: number
+}
+
 export interface DayDtoType {
   date: string
   isClosed: boolean

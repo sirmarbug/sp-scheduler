@@ -14,7 +14,8 @@
   "validation": {
     "required": "Pole jest wymagane",
     "email": "Podaj poprawny adres e-mail",
-    "minLength": "Minimalna długość to {min} znaków"
+    "minLength": "Minimalna długość to {min} znaków",
+    "time": "Podaj godzinę w formacie GG:MM"
   },
   "auth": {
     "login": {
@@ -49,7 +50,25 @@
   },
   "monthConfig": {
     "title": "Konfiguracja miesiąca",
-    "activeShifts": "{active} / {total} zmian aktywnych"
+    "activeShifts": "{active} / {total} zmian aktywnych",
+    "addShift": "Dodaj zmianę",
+    "shiftEditor": {
+      "createTitle": "Nowa zmiana",
+      "editTitle": "Edytuj zmianę",
+      "label": "Nazwa",
+      "shortLabel": "Skrót",
+      "start": "Godzina rozpoczęcia",
+      "end": "Godzina zakończenia",
+      "balanceBucket": "Bucket balansu",
+      "type": "Typ",
+      "requiredManagerCount": "Wymagana liczba kierowników",
+      "requiredCashierCount": "Wymagana liczba kasjerów",
+      "enabled": "Aktywna"
+    },
+    "confirmDeleteShift": {
+      "title": "Usuń zmianę",
+      "message": "Usunięcie zmiany \"{label}\" skasuje też powiązane przypisania w grafiku. Kontynuować?"
+    }
   },
   "requests": {
     "title": "Wnioski dostępności"
