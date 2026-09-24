@@ -1,0 +1,71 @@
+{
+  "app": {
+    "name": "SP Scheduler"
+  },
+  "common": {
+    "loading": "Ładowanie...",
+    "save": "Zapisz",
+    "cancel": "Anuluj",
+    "delete": "Usuń",
+    "edit": "Edytuj",
+    "add": "Dodaj",
+    "logout": "Wyloguj"
+  },
+  "validation": {
+    "required": "Pole jest wymagane",
+    "email": "Podaj poprawny adres e-mail",
+    "minLength": "Minimalna długość to {min} znaków"
+  },
+  "auth": {
+    "login": {
+      "title": "Logowanie",
+      "email": "E-mail",
+      "password": "Hasło",
+      "submit": "Zaloguj się",
+      "noAccount": "Nie masz konta? Zarejestruj się",
+      "error": "Nieprawidłowy e-mail lub hasło"
+    },
+    "register": {
+      "title": "Rejestracja",
+      "email": "E-mail",
+      "password": "Hasło",
+      "submit": "Zarejestruj się",
+      "hasAccount": "Masz już konto? Zaloguj się",
+      "error": "Nie udało się utworzyć konta"
+    }
+  },
+  "employees": {
+    "title": "Pracownicy",
+    "form": {
+      "name": "Imię i nazwisko",
+      "contractType": "Typ umowy",
+      "position": "Stanowisko",
+      "extraRoles": "Role dodatkowe"
+    },
+    "confirmDelete": {
+      "title": "Usuń pracownika",
+      "message": "Usunięcie pracownika skasuje też jego wnioski o dostępność i przypisania w grafiku. Kontynuować?"
+    }
+  },
+  "monthConfig": {
+    "title": "Konfiguracja miesiąca",
+    "activeShifts": "{active} / {total} zmian aktywnych"
+  },
+  "requests": {
+    "title": "Wnioski dostępności"
+  },
+  "schedule": {
+    "title": "Grafik",
+    "generate": "Generuj grafik",
+    "approve": "Zatwierdź",
+    "generating": "Generowanie grafiku przez AI...",
+    "noOptions": "Brak dopuszczalnych opcji dla tego pracownika i dnia",
+    "unassign": "Usuń przypisanie",
+    "validation": {
+      "issues": "Błędy krytyczne",
+      "coverageIssues": "Niedobory obsady",
+      "summary": "Podsumowanie per pracownik",
+      "summaryLine": "{hours}h / cel {target}h · różnica first-second: {diff} · trafienia w preferencje: {prefs}"
+    }
+  }
+}

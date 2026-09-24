@@ -1,0 +1,71 @@
+{
+  "app": {
+    "name": "SP Scheduler"
+  },
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "logout": "Log out"
+  },
+  "validation": {
+    "required": "This field is required",
+    "email": "Enter a valid email address",
+    "minLength": "Minimum length is {min} characters"
+  },
+  "auth": {
+    "login": {
+      "title": "Login",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Log in",
+      "noAccount": "Don't have an account? Register",
+      "error": "Invalid email or password"
+    },
+    "register": {
+      "title": "Register",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Register",
+      "hasAccount": "Already have an account? Log in",
+      "error": "Could not create account"
+    }
+  },
+  "employees": {
+    "title": "Employees",
+    "form": {
+      "name": "Full name",
+      "contractType": "Contract type",
+      "position": "Position",
+      "extraRoles": "Extra roles"
+    },
+    "confirmDelete": {
+      "title": "Delete employee",
+      "message": "Deleting this employee will also remove their availability requests and schedule assignments. Continue?"
+    }
+  },
+  "monthConfig": {
+    "title": "Month configuration",
+    "activeShifts": "{active} / {total} shifts active"
+  },
+  "requests": {
+    "title": "Availability requests"
+  },
+  "schedule": {
+    "title": "Schedule",
+    "generate": "Generate schedule",
+    "approve": "Approve",
+    "generating": "Generating schedule with AI...",
+    "noOptions": "No allowed options for this employee and day",
+    "unassign": "Remove assignment",
+    "validation": {
+      "issues": "Critical issues",
+      "coverageIssues": "Coverage shortfalls",
+      "summary": "Per-employee summary",
+      "summaryLine": "{hours}h / target {target}h · first-second diff: {diff} · preference hits: {prefs}"
+    }
+  }
+}

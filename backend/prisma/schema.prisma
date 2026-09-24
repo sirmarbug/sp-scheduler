@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+enum ContractType {
+  uop
+  zlecenie
+}
+
+enum Position {
+  manager
+  cashier
+}
+
+enum ExtraRole {
+  managerShift1
+  managerShift2
+}
+
+enum RequestType {
+  avoid
+  prefer
+}
+
+model Employee {
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  contractType ContractType
+  position     Position
+  extraRoles   ExtraRole[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Request {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId String      @db.ObjectId
+  date       String
+  shiftId    String
+  type       RequestType
+  createdAt  DateTime    @default(now())
+
+  @@index([employeeId])
+  @@index([date])
+}
+
+type Shift {
+  id                   String
+  label                String
+  start                String
+  end                  String
+  shortLabel           String
+  durationQuarterHours Int
+  balanceBucket        String
+  type                 String
+  enabled              Boolean
+  requiredManagerCount Int
+  requiredCashierCount Int
+}
+
+type Day {
+  date     String
+  isClosed Boolean
+  shifts   Shift[]
+}
+
+model MonthConfig {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  year       Int
+  monthIndex Int
+  monthValue String   @unique
+  days       Day[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+type Assignment {
+  employeeId String
+  date       String
+  shiftId    String
+  role       String
+}
+
+type ScheduleDiagnostics {
+  targetQuarterHours Int
+  totalSlots         Int
+  filledCount        Int
+  unfilledSlots      Int
+  tier               String
+  totalShortfall     Int
+}
+
+type GenerationAttempt {
+  attemptNumber  Int
+  timestamp      DateTime
+  issues         String[]
+  coverageIssues String[]
+  succeeded      Boolean
+}
+
+model Schedule {
+  id                 String               @id @default(auto()) @map("_id") @db.ObjectId
+  monthValue         String               @unique
+  assignments        Assignment[]
+  diagnostics        ScheduleDiagnostics?
+  status             String               @default("draft")
+  generationAttempts GenerationAttempt[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+}
