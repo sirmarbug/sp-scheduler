@@ -85,11 +85,15 @@
     "generating": "Generowanie grafiku przez AI...",
     "noOptions": "Brak dopuszczalnych opcji dla tego pracownika i dnia",
     "unassign": "Usuń przypisanie",
+    "approveErrorTitle": "Nie można zatwierdzić grafiku",
+    "cellErrorTitle": "Nie można zapisać zmiany",
     "validation": {
       "issues": "Błędy krytyczne",
       "coverageIssues": "Niedobory obsady",
       "summary": "Podsumowanie per pracownik",
-      "summaryLine": "{hours}h / cel {target}h · różnica first-second: {diff} · trafienia w preferencje: {prefs}"
+      "summaryHours": "{hours}h / cel",
+      "summarySuffix": "h · różnica first-second: {diff} · trafienia w preferencje: {prefs}",
+      "targetNotApplicable": "—"
     }
   }
 }

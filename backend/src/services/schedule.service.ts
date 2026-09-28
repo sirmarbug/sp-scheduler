@@ -25,18 +25,40 @@ export class ScheduleService {
   ) {}
 
   async validateMonth(monthValue: string): Promise<ValidationResult> {
-    const { monthConfig, employees, requests, assignments } = await this.loadMonthData(monthValue)
-    return validate(assignments, monthConfig, employees, requests)
+    const { monthConfig, employees, requests, assignments, targetHoursOverrides } = await this.loadMonthData(monthValue)
+    return validate(assignments, monthConfig, employees, requests, targetHoursOverrides)
+  }
+
+  async updateTargetHours(monthValue: string, employeeId: string, hours: number | null): Promise<ValidationResult> {
+    const employee = await this.prisma.employee.findUnique({ where: { id: employeeId } })
+    if (!employee) {
+      throw new AppError('employees.notFound', 404, 'Pracownik nie istnieje')
+    }
+    if (employee.contractType !== 'uop') {
+      throw new AppError('targetHours.notApplicable', 422, 'Cel godzinowy dotyczy tylko pracowników UoP')
+    }
+
+    if (hours === null) {
+      await this.prisma.targetHoursOverride.deleteMany({ where: { employeeId, monthValue } })
+    } else {
+      await this.prisma.targetHoursOverride.upsert({
+        where: { employeeId_monthValue: { employeeId, monthValue } },
+        create: { employeeId, monthValue, hours },
+        update: { hours },
+      })
+    }
+
+    return this.validateMonth(monthValue)
   }
 
   async generate(monthValue: string) {
-    const { monthConfig, employees, requests } = await this.loadMonthData(monthValue)
+    const { monthConfig, employees, requests, targetHoursOverrides } = await this.loadMonthData(monthValue)
 
     const targetQuarterHours = computeTargetQuarterHours(monthConfig.days)
     const targetHoursByEmployee: Record<string, number> = {}
     for (const employee of employees) {
       if (employee.contractType === 'uop') {
-        targetHoursByEmployee[employee.id] = targetQuarterHours / 4
+        targetHoursByEmployee[employee.id] = targetHoursOverrides.get(employee.id) ?? targetQuarterHours / 4
       }
     }
 
@@ -69,6 +91,22 @@ export class ScheduleService {
     })
 
     return schedule
+  }
+
+  async approve(monthValue: string) {
+    const validation = await this.validateMonth(monthValue)
+    if (validation.issues.length > 0) {
+      throw new AppError(
+        'schedule.approve.hasIssues',
+        409,
+        `Nie można zatwierdzić grafiku: ${validation.issues.join('; ')}`
+      )
+    }
+
+    return this.prisma.schedule.update({
+      where: { monthValue },
+      data: { status: 'approved' },
+    })
   }
 
   async clear(monthValue: string) {
@@ -119,10 +157,11 @@ export class ScheduleService {
       throw new AppError('monthConfig.notFound', 404, 'Konfiguracja miesiąca nie istnieje')
     }
 
-    const [schedule, employees, requests] = await Promise.all([
+    const [schedule, employees, requests, overrides] = await Promise.all([
       this.prisma.schedule.findUnique({ where: { monthValue } }),
       this.prisma.employee.findMany(),
       this.prisma.request.findMany(),
+      this.prisma.targetHoursOverride.findMany({ where: { monthValue } }),
     ])
 
     const assignments: AssignmentForValidation[] = (schedule?.assignments ?? []).map((a) => ({
@@ -132,11 +171,14 @@ export class ScheduleService {
       role: a.role as 'manager' | 'cashier',
     }))
 
+    const targetHoursOverrides = new Map(overrides.map((o) => [o.employeeId, o.hours]))
+
     return {
       monthConfig: monthConfig as unknown as MonthConfigForValidation,
       employees: employees as unknown as EmployeeForValidation[],
       requests: requests as unknown as RequestForValidation[],
       assignments,
+      targetHoursOverrides,
     }
   }
 }

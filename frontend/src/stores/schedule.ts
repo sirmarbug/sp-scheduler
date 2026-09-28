@@ -1,10 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { approveSchedule, clearSchedule, generateSchedule, getSchedule, updateCell } from '@/api/schedule'
+import { useNotification } from '@/composables/useNotification'
+import { i18n } from '@/locales'
 import { useValidationStore } from '@/stores/validation'
 import type { CellOptionType, ScheduleType } from '@/types'
+import { getErrorMessage } from '@/utils'
+
+const { t } = i18n.global
 
 export const useScheduleStore = defineStore('schedule', () => {
+  const { negative } = useNotification()
   const current = ref<ScheduleType | null>(null)
   const loading = ref(false)
   const generating = ref(false)
@@ -32,9 +38,12 @@ export const useScheduleStore = defineStore('schedule', () => {
   }
 
   async function approve(monthValue: string) {
-    const { data, request, isFailed } = approveSchedule(monthValue)
+    const { data, error, request, isFailed } = approveSchedule(monthValue)
     await request()
-    if (isFailed.value || !data.value) return false
+    if (isFailed.value || !data.value) {
+      negative(t('schedule.approveErrorTitle'), getErrorMessage(error.value))
+      return false
+    }
     current.value = data.value
     return true
   }
@@ -50,9 +59,12 @@ export const useScheduleStore = defineStore('schedule', () => {
   }
 
   async function updateAssignment(monthValue: string, employeeId: string, date: string, option: CellOptionType | null) {
-    const { data, request, isFailed } = updateCell(monthValue, employeeId, date, option)
+    const { data, error, request, isFailed } = updateCell(monthValue, employeeId, date, option)
     await request()
-    if (isFailed.value || !data.value) return false
+    if (isFailed.value || !data.value) {
+      negative(t('schedule.cellErrorTitle'), getErrorMessage(error.value))
+      return false
+    }
     current.value = data.value
     const validationStore = useValidationStore()
     await validationStore.refresh(monthValue)

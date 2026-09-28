@@ -4,7 +4,7 @@ import { env } from '../config/env.js'
 import { AppError } from '../types/index.js'
 import { ScheduleService } from '../services/schedule.service.js'
 import { getAvailableOptions, ScheduleCellService } from '../services/schedule-cell.service.js'
-import type { CellOptionsQuery, UpdateCellRequest } from '../schemas/schedule.schema.js'
+import type { CellOptionsQuery, TargetHoursParams, UpdateCellRequest, UpdateTargetHoursRequest } from '../schemas/schedule.schema.js'
 
 const scheduleService = new ScheduleService(prisma, {
   openRouterApiKey: env.OPENROUTER_API_KEY,
@@ -34,10 +34,7 @@ export const scheduleController = {
   },
 
   async approve(req: Request<{ monthValue: string }>, res: Response) {
-    const schedule = await prisma.schedule.update({
-      where: { monthValue: req.params.monthValue },
-      data: { status: 'approved' },
-    })
+    const schedule = await scheduleService.approve(req.params.monthValue)
     res.json(schedule)
   },
 
@@ -53,14 +50,19 @@ export const scheduleController = {
   },
 
   async updateCell(req: Request<{ monthValue: string }, unknown, UpdateCellRequest>, res: Response) {
-    const { monthConfig, employees, requests } = await scheduleService.loadMonthData(req.params.monthValue)
+    const { monthConfig, employees, requests, targetHoursOverrides } = await scheduleService.loadMonthData(req.params.monthValue)
     const schedule = await scheduleCellService.updateCell(
       req.params.monthValue,
       req.body.employeeId,
       req.body.date,
       req.body.option,
-      { monthConfig, employees, requests }
+      { monthConfig, employees, requests, targetHoursOverrides }
     )
     res.json(schedule)
+  },
+
+  async updateTargetHours(req: Request<TargetHoursParams, unknown, UpdateTargetHoursRequest>, res: Response) {
+    const result = await scheduleService.updateTargetHours(req.params.monthValue, req.params.employeeId, req.body.hours)
+    res.json(result)
   },
 }

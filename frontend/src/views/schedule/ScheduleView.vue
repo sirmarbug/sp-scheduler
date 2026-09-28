@@ -82,6 +82,10 @@ async function handleUnassign() {
   cellOptions.close()
 }
 
+async function handleUpdateTargetHours(employeeId: string, hours: number) {
+  await validationStore.updateEmployeeTargetHours(monthValue.value, employeeId, hours)
+}
+
 onMounted(loadAll)
 </script>
 
@@ -105,7 +109,7 @@ onMounted(loadAll)
       @cell-click="handleCellClick"
     />
 
-    <ValidationPanel :result="validationResult" />
+    <ValidationPanel :result="validationResult" @update-target-hours="handleUpdateTargetHours" />
 
     <ScheduleCellEditor
       v-model="cellOptions.visible.value"

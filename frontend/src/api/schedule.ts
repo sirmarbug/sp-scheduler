@@ -1,7 +1,7 @@
 import { useHttp } from '@/composables/useHttp'
 import type { CellOptionType, ScheduleType, ValidationResultType } from '@/types'
 
-const { get, post, patch } = useHttp()
+const { get, post, patch, put } = useHttp()
 
 export const getSchedule = (monthValue: string) => get<ScheduleType>(`/schedule/${monthValue}`)
 
@@ -21,3 +21,6 @@ export const updateCell = (monthValue: string, employeeId: string, date: string,
     `/schedule/${monthValue}/cell`,
     { employeeId, date, option }
   )
+
+export const updateTargetHours = (monthValue: string, employeeId: string, hours: number | null) =>
+  put<ValidationResultType, { hours: number | null }>(`/schedule/${monthValue}/target-hours/${employeeId}`, { hours })

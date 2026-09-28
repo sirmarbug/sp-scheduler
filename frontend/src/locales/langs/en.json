@@ -85,11 +85,15 @@
     "generating": "Generating schedule with AI...",
     "noOptions": "No allowed options for this employee and day",
     "unassign": "Remove assignment",
+    "approveErrorTitle": "Could not approve schedule",
+    "cellErrorTitle": "Could not save change",
     "validation": {
       "issues": "Critical issues",
       "coverageIssues": "Coverage shortfalls",
       "summary": "Per-employee summary",
-      "summaryLine": "{hours}h / target {target}h · first-second diff: {diff} · preference hits: {prefs}"
+      "summaryHours": "{hours}h / target",
+      "summarySuffix": "h · first-second diff: {diff} · preference hits: {prefs}",
+      "targetNotApplicable": "—"
     }
   }
 }

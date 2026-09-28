@@ -213,6 +213,33 @@ describe('ScheduleValidatorService', () => {
     expect(result.issues.length).toBe(0)
   })
 
+  it('uses a target hours override for an employee instead of the auto-computed target', () => {
+    const monthConfig = buildMonthConfig([buildDay({ date: '2024-10-01' }), buildDay({ date: '2024-10-02' })])
+    const employees = [buildEmployee({ id: 'emp-1', contractType: 'uop' })]
+    const assignments = [
+      buildAssignment({ employeeId: 'emp-1', date: '2024-10-01', shiftId: 'morning' }),
+      buildAssignment({ employeeId: 'emp-1', date: '2024-10-02', shiftId: 'morning' }),
+    ]
+    const overrides = new Map([['emp-1', 16]])
+
+    const result = validate(assignments, monthConfig, employees, [], overrides)
+
+    expect(result.summaryList[0].targetHours).toBe(16)
+    expect(result.issues.some((i) => i.includes('(UoP) wynoszą'))).toBe(false)
+  })
+
+  it('flags UoP hours that differ from an active target hours override', () => {
+    const monthConfig = buildMonthConfig([buildDay({ date: '2024-10-01' })])
+    const employees = [buildEmployee({ id: 'emp-1', contractType: 'uop' })]
+    const assignments = [buildAssignment({ employeeId: 'emp-1', date: '2024-10-01', shiftId: 'morning' })]
+    const overrides = new Map([['emp-1', 4]])
+
+    const result = validate(assignments, monthConfig, employees, [], overrides)
+
+    expect(result.summaryList[0].targetHours).toBe(4)
+    expect(result.issues.some((i) => i.includes('(UoP) wynoszą'))).toBe(true)
+  })
+
   it('reports status "Grafik jest spójny" only when issues and coverageIssues are both empty', () => {
     const monthConfig = buildMonthConfig([buildDay({ date: '2024-10-01', shifts: [] })])
     const result = validate([], monthConfig, [], [])

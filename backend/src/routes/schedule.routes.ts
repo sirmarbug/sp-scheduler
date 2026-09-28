@@ -3,7 +3,13 @@ import { scheduleController } from '../controllers/schedule.controller.js'
 import { authMiddleware } from '../middlewares/authMiddleware.js'
 import { validate } from '../middlewares/validate.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
-import { cellOptionsQuerySchema, monthValueParamsSchema, updateCellSchema } from '../schemas/schedule.schema.js'
+import {
+  cellOptionsQuerySchema,
+  monthValueParamsSchema,
+  targetHoursParamsSchema,
+  updateCellSchema,
+  updateTargetHoursSchema,
+} from '../schemas/schedule.schema.js'
 
 export const scheduleRouter = Router()
 
@@ -43,4 +49,9 @@ scheduleRouter.patch(
   '/:monthValue/cell',
   validate({ params: monthValueParamsSchema, body: updateCellSchema }),
   asyncHandler(scheduleController.updateCell)
+)
+scheduleRouter.put(
+  '/:monthValue/target-hours/:employeeId',
+  validate({ params: targetHoursParamsSchema, body: updateTargetHoursSchema }),
+  asyncHandler(scheduleController.updateTargetHours)
 )

@@ -1,7 +1,7 @@
 import dayjs from '../config/dayjs.js'
 import { canFillRole } from '../utils/roleEligibility.js'
 import { isAvoided, isPreferred } from '../utils/requestMatching.js'
-import { computeTargetQuarterHours } from '../utils/time.js'
+import { computeEmployeeQuarterHours, resolveTargetQuarterHours } from '../utils/time.js'
 import type {
   AssignmentForValidation,
   DayForValidation,
@@ -27,7 +27,8 @@ export function validate(
   assignments: AssignmentForValidation[],
   monthConfig: MonthConfigForValidation,
   employees: EmployeeForValidation[],
-  requests: RequestForValidation[]
+  requests: RequestForValidation[],
+  targetHoursOverrides: Map<string, number> = new Map()
 ): ValidationResult {
   const issues: string[] = []
   const coverageIssues: string[] = []
@@ -126,12 +127,9 @@ export function validate(
   }
 
   // 6. godziny UoP vs target
-  const targetQuarterHours = computeTargetQuarterHours(monthConfig.days)
-
   // Podsumowanie per pracownik
   const summaryList: EmployeeSummary[] = employees.map((employee) => {
     const employeeAssignments = assignments.filter((a) => a.employeeId === employee.id)
-    let totalQuarterHours = 0
     let firstCount = 0
     let secondCount = 0
     let preferenceHits = 0
@@ -140,7 +138,6 @@ export function validate(
       const day = findDay(monthConfig, assignment.date)
       const shift = findShift(day, assignment.shiftId)
       if (!shift) continue
-      totalQuarterHours += shift.durationQuarterHours
       if (shift.balanceBucket === 'first') firstCount += 1
       if (shift.balanceBucket === 'second') secondCount += 1
       if (isPreferred(requests, assignment.employeeId, assignment.date, assignment.shiftId)) {
@@ -148,11 +145,13 @@ export function validate(
       }
     }
 
-    const targetHours = employee.contractType === 'uop' ? targetQuarterHours / 4 : null
+    const totalQuarterHours = computeEmployeeQuarterHours(assignments, employee.id, monthConfig.days)
+    const targetQuarterHoursForEmployee = resolveTargetQuarterHours(employee, monthConfig.days, targetHoursOverrides)
+    const targetHours = targetQuarterHoursForEmployee !== null ? targetQuarterHoursForEmployee / 4 : null
 
-    if (employee.contractType === 'uop' && totalQuarterHours !== targetQuarterHours) {
+    if (employee.contractType === 'uop' && totalQuarterHours !== targetQuarterHoursForEmployee) {
       issues.push(
-        `Godziny pracownika ${employee.name} (UoP) wynoszą ${totalQuarterHours / 4}h, cel to ${targetQuarterHours / 4}h`
+        `Godziny pracownika ${employee.name} (UoP) wynoszą ${totalQuarterHours / 4}h, cel to ${(targetQuarterHoursForEmployee ?? 0) / 4}h`
       )
     }
 

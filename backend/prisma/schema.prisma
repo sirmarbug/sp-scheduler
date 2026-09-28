@@ -77,6 +77,18 @@ type Day {
   shifts   Shift[]
 }
 
+model TargetHoursOverride {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId String   @db.ObjectId
+  monthValue String
+  hours      Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([employeeId, monthValue])
+  @@index([monthValue])
+}
+
 model MonthConfig {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   year       Int

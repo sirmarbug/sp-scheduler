@@ -25,6 +25,18 @@ export const updateCellSchema = registry.register(
 )
 export type UpdateCellRequest = z.infer<typeof updateCellSchema>
 
+export const targetHoursParamsSchema = z.object({
+  monthValue: z.string().regex(/^\d{4}-\d{2}$/),
+  employeeId: z.string().min(1),
+})
+export type TargetHoursParams = z.infer<typeof targetHoursParamsSchema>
+
+export const updateTargetHoursSchema = registry.register(
+  'UpdateTargetHoursRequest',
+  z.object({ hours: z.number().positive().nullable() })
+)
+export type UpdateTargetHoursRequest = z.infer<typeof updateTargetHoursSchema>
+
 export const validationResultSchema = registry.register(
   'ValidationResult',
   z.object({

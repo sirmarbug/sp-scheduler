@@ -9,9 +9,19 @@ interface ValidationPanelProps {
 
 const props = defineProps<ValidationPanelProps>()
 
+const emit = defineEmits<{
+  (e: 'update-target-hours', employeeId: string, hours: number): void
+}>()
+
 const { t } = useI18n()
 
 const isConsistent = computed(() => !!props.result && props.result.issues.length === 0 && props.result.coverageIssues.length === 0)
+
+function handleTargetHoursChange(employeeId: string, value: string | number | null) {
+  const hours = Number(value)
+  if (Number.isNaN(hours)) return
+  emit('update-target-hours', employeeId, hours)
+}
 </script>
 
 <template>
@@ -43,9 +53,18 @@ const isConsistent = computed(() => !!props.result && props.result.issues.length
           <q-item-section>
             <q-item-label>{{ summary.name }}</q-item-label>
             <q-item-label caption>
-              {{ t('schedule.validation.summaryLine', {
-                hours: summary.totalHours,
-                target: summary.targetHours ?? '—',
+              {{ t('schedule.validation.summaryHours', { hours: summary.totalHours }) }}
+              <q-input
+                v-if="summary.targetHours !== null"
+                dense
+                borderless
+                type="number"
+                class="validation-panel__target-input"
+                :model-value="summary.targetHours"
+                @change="(value: string | number | null) => handleTargetHoursChange(summary.employeeId, value)"
+              />
+              <span v-else>{{ t('schedule.validation.targetNotApplicable') }}</span>
+              {{ t('schedule.validation.summarySuffix', {
                 diff: summary.firstSecondDiff,
                 prefs: summary.preferenceHits,
               }) }}
@@ -60,5 +79,11 @@ const isConsistent = computed(() => !!props.result && props.result.issues.length
 <style scoped lang="scss">
 .validation-panel {
   margin-top: 1rem;
+
+  &__target-input {
+    display: inline-flex;
+    width: 3.5rem;
+    vertical-align: middle;
+  }
 }
 </style>

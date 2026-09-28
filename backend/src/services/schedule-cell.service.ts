@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client'
 import { AppError } from '../types/index.js'
 import { canFillRole } from '../utils/roleEligibility.js'
 import { isAvoided } from '../utils/requestMatching.js'
+import { computeEmployeeQuarterHours, resolveTargetQuarterHours } from '../utils/time.js'
 import type {
   AssignmentForValidation,
   EmployeeForValidation,
@@ -61,6 +62,7 @@ export class ScheduleCellService {
       monthConfig: MonthConfigForValidation
       employees: EmployeeForValidation[]
       requests: RequestForValidation[]
+      targetHoursOverrides: Map<string, number>
     }
   ) {
     const schedule = await this.prisma.schedule.upsert({
@@ -91,6 +93,21 @@ export class ScheduleCellService {
       if (!isAllowed) {
         throw new AppError('schedule.invalidCellOption', 400, 'Wybrana opcja nie jest dopuszczalna dla tego pracownika/dnia')
       }
+
+      const employee = context.employees.find((e) => e.id === employeeId)
+      if (employee && employee.contractType === 'uop') {
+        const targetQuarterHours = resolveTargetQuarterHours(employee, context.monthConfig.days, context.targetHoursOverrides)
+        const nextAssignments = [...withoutThisCell, { employeeId, date, shiftId: payload.shiftId, role: payload.role }]
+        const newTotalQuarterHours = computeEmployeeQuarterHours(nextAssignments, employeeId, context.monthConfig.days)
+        if (targetQuarterHours !== null && newTotalQuarterHours > targetQuarterHours) {
+          throw new AppError(
+            'schedule.cellExceedsTargetHours',
+            400,
+            `Ta zmiana przekroczyłaby cel godzinowy pracownika ${employee.name}: ${newTotalQuarterHours / 4}h przy celu ${targetQuarterHours / 4}h`
+          )
+        }
+      }
+
       withoutThisCell.push({ employeeId, date, shiftId: payload.shiftId, role: payload.role })
     }
 

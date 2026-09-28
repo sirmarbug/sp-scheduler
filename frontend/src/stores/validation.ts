@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { getValidation } from '@/api/schedule'
+import { getValidation, updateTargetHours } from '@/api/schedule'
 import type { ValidationResultType } from '@/types'
 
 export const useValidationStore = defineStore('validation', () => {
@@ -16,5 +16,12 @@ export const useValidationStore = defineStore('validation', () => {
     result.value = data.value
   }
 
-  return { result, loading, refresh }
+  async function updateEmployeeTargetHours(monthValue: string, employeeId: string, hours: number | null) {
+    const { data, request, isFailed } = updateTargetHours(monthValue, employeeId, hours)
+    await request()
+    if (isFailed.value || !data.value) return
+    result.value = data.value
+  }
+
+  return { result, loading, refresh, updateEmployeeTargetHours }
 })

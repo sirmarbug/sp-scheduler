@@ -1,5 +1,5 @@
 import dayjs from '../config/dayjs.js'
-import type { DayForValidation } from '../types/schedule.js'
+import type { AssignmentForValidation, DayForValidation, EmployeeForValidation } from '../types/schedule.js'
 
 const QUARTER_HOURS_PER_WORK_DAY = 32 // 8h * 4 (quarter-hour blocks)
 
@@ -10,6 +10,33 @@ export function computeTargetQuarterHours(days: DayForValidation[]): number {
     return weekday >= 1 && weekday <= 5
   })
   return businessDays.length * QUARTER_HOURS_PER_WORK_DAY
+}
+
+export function computeEmployeeQuarterHours(
+  assignments: AssignmentForValidation[],
+  employeeId: string,
+  days: DayForValidation[]
+): number {
+  let totalQuarterHours = 0
+  for (const assignment of assignments) {
+    if (assignment.employeeId !== employeeId) continue
+    const day = days.find((d) => d.date === assignment.date)
+    const shift = day?.shifts.find((s) => s.id === assignment.shiftId)
+    if (!shift) continue
+    totalQuarterHours += shift.durationQuarterHours
+  }
+  return totalQuarterHours
+}
+
+export function resolveTargetQuarterHours(
+  employee: EmployeeForValidation,
+  days: DayForValidation[],
+  targetHoursOverrides: Map<string, number>
+): number | null {
+  if (employee.contractType !== 'uop') return null
+  const autoTargetHours = computeTargetQuarterHours(days) / 4
+  const targetHours = targetHoursOverrides.get(employee.id) ?? autoTargetHours
+  return targetHours * 4
 }
 
 export function computeDurationQuarterHours(start: string, end: string): number {
