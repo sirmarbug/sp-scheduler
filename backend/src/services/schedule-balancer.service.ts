@@ -2,7 +2,7 @@ import dayjs from '../config/dayjs.js'
 import { canFillRole } from '../utils/roleEligibility.js'
 import { isAvoided } from '../utils/requestMatching.js'
 import { findDay, findShift } from '../utils/scheduleLookup.js'
-import { computeEmployeeQuarterHours } from '../utils/time.js'
+import { computeQuarterHoursDelta } from '../utils/time.js'
 import type {
   AssignmentForValidation,
   EmployeeForValidation,
@@ -41,18 +41,6 @@ function isEligibleForSlot(
   if (working.some((a) => a.employeeId === employee.id && a.date === date)) return false
   if (workDaysInIsoWeek(working, employee.id, date).size >= MAX_WORK_DAYS_PER_ISO_WEEK) return false
   return true
-}
-
-function computeDeltaQuarterHours(
-  employeeId: string,
-  working: AssignmentForValidation[],
-  monthConfig: MonthConfigForValidation,
-  targetHoursByEmployee: Record<string, number>
-): number {
-  const targetHours = targetHoursByEmployee[employeeId]
-  if (targetHours === undefined) return 0
-  const actualQuarterHours = computeEmployeeQuarterHours(working, employeeId, monthConfig.days)
-  return actualQuarterHours - targetHours * 4
 }
 
 /**
@@ -111,7 +99,7 @@ function trimExcessCoverage(
             const employee = employeeById.get(assignment.employeeId)
             let removalScore = 500 // domyślnie zlecenie: bezpieczne do usunięcia
             if (employee?.contractType === 'uop' && targetHoursByEmployee[employee.id] !== undefined) {
-              const delta = computeDeltaQuarterHours(employee.id, result, monthConfig, targetHoursByEmployee)
+              const delta = computeQuarterHoursDelta(employee.id, result, monthConfig.days, targetHoursByEmployee)
               removalScore = delta > 0 ? 1000 + delta : delta - 1000
             }
             return { assignment, removalScore }
@@ -142,7 +130,7 @@ function pickBestCoverageCandidate(
 
   const scored = eligible.map((employee) => {
     if (employee.contractType === 'uop' && targetHoursByEmployee[employee.id] !== undefined) {
-      const delta = computeDeltaQuarterHours(employee.id, working, monthConfig, targetHoursByEmployee)
+      const delta = computeQuarterHoursDelta(employee.id, working, monthConfig.days, targetHoursByEmployee)
       return { employee, priority: 0, delta }
     }
     return { employee, priority: 1, delta: 0 }
@@ -206,10 +194,13 @@ function pickReceiver(
 ): EmployeeForValidation | null {
   const eligible = employees.filter((e) => e.id !== excludeEmployeeId && isEligibleForSlot(e, shift, role, date, working, requests))
 
+  // Transfer nie zmienia obsady (przesunięcie 1:1), więc nigdy nie ma uzasadnienia, by
+  // wybrać odbiorcę, dla którego ten transfer oznaczałby przekroczenie celu — nawet jeśli
+  // numerycznie wypadałby "bliżej zera" niż bezpieczna (niedoborowa) alternatywa.
   const uopReceivers = eligible
     .filter((e) => e.contractType === 'uop' && targetHoursByEmployee[e.id] !== undefined)
-    .map((e) => ({ employee: e, delta: computeDeltaQuarterHours(e.id, working, monthConfig, targetHoursByEmployee) }))
-    .filter((r) => r.delta < 0)
+    .map((e) => ({ employee: e, delta: computeQuarterHoursDelta(e.id, working, monthConfig.days, targetHoursByEmployee) }))
+    .filter((r) => r.delta < 0 && duration + r.delta <= 0)
     .sort((a, b) => Math.abs(duration + a.delta) - Math.abs(duration + b.delta))
 
   if (uopReceivers.length > 0) return uopReceivers[0].employee
@@ -227,7 +218,7 @@ function giveAwayOneShift(
   requests: RequestForValidation[],
   targetHoursByEmployee: Record<string, number>
 ): boolean {
-  const giverDelta = computeDeltaQuarterHours(employeeId, result, monthConfig, targetHoursByEmployee)
+  const giverDelta = computeQuarterHoursDelta(employeeId, result, monthConfig.days, targetHoursByEmployee)
 
   const candidates = result
     .filter((a) => a.employeeId === employeeId)
@@ -278,7 +269,7 @@ function receiveOneShift(
 ): boolean {
   const me = employeeById.get(employeeId)
   if (!me) return false
-  const myDelta = computeDeltaQuarterHours(employeeId, result, monthConfig, targetHoursByEmployee)
+  const myDelta = computeQuarterHoursDelta(employeeId, result, monthConfig.days, targetHoursByEmployee)
 
   const candidates = result
     .filter((a) => a.employeeId !== employeeId)
@@ -293,7 +284,7 @@ function receiveOneShift(
     .filter(({ holder }) => {
       if (holder.contractType === 'zlecenie') return true
       if (targetHoursByEmployee[holder.id] === undefined) return false
-      return computeDeltaQuarterHours(holder.id, result, monthConfig, targetHoursByEmployee) > 0
+      return computeQuarterHoursDelta(holder.id, result, monthConfig.days, targetHoursByEmployee) > 0
     })
     .sort((x, y) => Math.abs(myDelta + x.duration) - Math.abs(myDelta + y.duration))
 
@@ -329,7 +320,7 @@ function rebalanceHours(
 
     for (const id of uopTargetIds) {
       if (stuck.has(id)) continue
-      const delta = Math.abs(computeDeltaQuarterHours(id, result, monthConfig, targetHoursByEmployee))
+      const delta = Math.abs(computeQuarterHoursDelta(id, result, monthConfig.days, targetHoursByEmployee))
       if (delta > worstAbs) {
         worstAbs = delta
         worstId = id
@@ -338,7 +329,7 @@ function rebalanceHours(
 
     if (!worstId || worstAbs === 0) break
 
-    const delta = computeDeltaQuarterHours(worstId, result, monthConfig, targetHoursByEmployee)
+    const delta = computeQuarterHoursDelta(worstId, result, monthConfig.days, targetHoursByEmployee)
     const moved =
       delta > 0
         ? giveAwayOneShift(worstId, result, monthConfig, employees, requests, targetHoursByEmployee)

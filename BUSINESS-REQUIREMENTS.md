@@ -21,7 +21,7 @@ Aplikacja tworzy **miesięczny grafik zmian** dla jednej lokalizacji (sklep) z d
 | **Stanowisko** | `manager` (kierownik) lub `cashier` (kasjer). |
 | **Rola dodatkowa** | `managerShift1` / `managerShift2` — pozwala kasjerowi pełnić funkcję kierownika na konkretnej zmianie (odpowiednio: pierwszej/porannej lub drugiej/wieczornej). `cashierEligible` — pozwala managerowi pełnić funkcję kasjera na każdej zmianie, bez ograniczenia do konkretnego bucketu. |
 | **Zmiana** | Blok czasowy w dniu z: godziną startu/końca, wymaganą liczbą osób per rola, "bucketem balansu", typem (`auto`/`manual`). |
-| **Domyślne zmiany** | 1 zmiana (07:00–15:00, "first"), Środek dnia (12:00–20:00, "mid"), 2 zmiana (13:00–21:15, "second"). Konfigurowalne per dzień. |
+| **Domyślne zmiany** | 1 zmiana (07:00–15:00, "first"), Środek dnia (12:00–20:00, "mid"), 2 zmiana (13:15–21:15, "second"). Konfigurowalne per dzień. |
 | **Bucket balansu** | `first` / `mid` / `second` — używany do liczenia równowagi między zmianami wcześniejszymi i późniejszymi u danego pracownika. |
 | **Dzień zamknięty** | Domyślnie niedziela; dzień bez żadnych zmian i przypisań. |
 | **Zmiana manualna** | Zmiana wyłączona z automatycznego generowania — obsadzana wyłącznie ręcznie, ale wciąż podlega walidacji pokrycia. |

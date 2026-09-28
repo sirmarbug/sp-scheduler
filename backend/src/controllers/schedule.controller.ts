@@ -25,6 +25,11 @@ export const scheduleController = {
     res.json(schedule)
   },
 
+  async generateDeterministic(req: Request<{ monthValue: string }>, res: Response) {
+    const schedule = await scheduleService.generateDeterministic(req.params.monthValue)
+    res.json(schedule)
+  },
+
   async getByMonthValue(req: Request<{ monthValue: string }>, res: Response) {
     const schedule = await prisma.schedule.findUnique({ where: { monthValue: req.params.monthValue } })
     if (!schedule) {

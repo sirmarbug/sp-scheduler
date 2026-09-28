@@ -27,7 +27,7 @@ export function buildDefaultShifts(): ShiftDto[] {
       id: 'evening',
       label: '2 zmiana',
       shortLabel: 'II',
-      start: '13:00',
+      start: '13:15',
       end: '21:15',
       balanceBucket: 'second',
       requiredManagerCount: 1,

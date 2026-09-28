@@ -6,9 +6,10 @@ import { balanceAssignments } from './schedule-balancer.service.js'
 import { validate } from './schedule-validator.service.js'
 import type {
   AssignmentForValidation,
-  EmployeeForValidation,
+  GenerateInput,
+  GenerateResult,
+  GenerationAttemptLog,
   MonthConfigForValidation,
-  RequestForValidation,
 } from '../types/schedule.js'
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
@@ -18,27 +19,6 @@ interface AiSchedulerConfig {
   model: string
   maxRetries: number
   temperature: number
-}
-
-export interface GenerationAttemptLog {
-  attemptNumber: number
-  timestamp: Date
-  issues: string[]
-  coverageIssues: string[]
-  succeeded: boolean
-}
-
-export interface GenerateResult {
-  assignments: AssignmentForValidation[]
-  attempts: GenerationAttemptLog[]
-  status: 'draft' | 'needsCorrection'
-}
-
-interface GenerateInput {
-  monthConfig: MonthConfigForValidation
-  employees: EmployeeForValidation[]
-  requests: RequestForValidation[]
-  targetHoursByEmployee: Record<string, number>
 }
 
 export class AiSchedulerService {

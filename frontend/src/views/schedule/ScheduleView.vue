@@ -22,7 +22,7 @@ const validationStore = useValidationStore()
 
 const { employees } = storeToRefs(employeesStore)
 const { current: monthConfig } = storeToRefs(monthConfigStore)
-const { current: schedule, generating } = storeToRefs(scheduleStore)
+const { current: schedule, generating, generatingDeterministic } = storeToRefs(scheduleStore)
 const { result: validationResult } = storeToRefs(validationStore)
 
 const cellOptions = useCellOptions()
@@ -62,6 +62,10 @@ async function handleGenerate() {
   await scheduleStore.generate(monthValue.value)
 }
 
+async function handleFillAuto() {
+  await scheduleStore.generateDeterministic(monthValue.value)
+}
+
 async function handleApprove() {
   await scheduleStore.approve(monthValue.value)
 }
@@ -99,11 +103,13 @@ onMounted(loadAll)
       <div class="text-h6">{{ t('schedule.title') }}</div>
       <input v-model="monthValue" type="month" @change="loadAll" />
       <q-btn color="primary" :loading="generating" :label="t('schedule.generate')" @click="handleGenerate" />
+      <q-btn color="primary" flat :loading="generatingDeterministic" :label="t('schedule.fillAuto')" @click="handleFillAuto" />
       <q-btn color="secondary" :disable="!canApprove || isApproved" :label="t('schedule.approve')" @click="handleApprove" />
       <q-btn color="negative" flat :disable="isApproved" :label="t('schedule.clear')" @click="handleClear" />
     </div>
 
     <div v-if="generating">{{ t('schedule.generating') }}</div>
+    <div v-if="generatingDeterministic">{{ t('schedule.generatingDeterministic') }}</div>
 
     <ScheduleGrid
       v-if="monthConfig"

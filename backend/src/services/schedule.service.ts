@@ -1,11 +1,13 @@
 import type { PrismaClient } from '@prisma/client'
 import { AppError } from '../types/index.js'
 import { AiSchedulerService } from './ai-scheduler.service.js'
+import { DeterministicSchedulerService } from './deterministic-scheduler.service.js'
 import { validate } from './schedule-validator.service.js'
 import { computeTargetQuarterHours } from '../utils/time.js'
 import type {
   AssignmentForValidation,
   EmployeeForValidation,
+  GenerateResult,
   MonthConfigForValidation,
   RequestForValidation,
   ValidationResult,
@@ -53,14 +55,7 @@ export class ScheduleService {
 
   async generate(monthValue: string) {
     const { monthConfig, employees, requests, targetHoursOverrides } = await this.loadMonthData(monthValue)
-
-    const targetQuarterHours = computeTargetQuarterHours(monthConfig.days)
-    const targetHoursByEmployee: Record<string, number> = {}
-    for (const employee of employees) {
-      if (employee.contractType === 'uop') {
-        targetHoursByEmployee[employee.id] = targetHoursOverrides.get(employee.id) ?? targetQuarterHours / 4
-      }
-    }
+    const { targetQuarterHours, targetHoursByEmployee } = this.computeTargets(monthConfig, employees, targetHoursOverrides)
 
     const aiService = new AiSchedulerService({
       apiKey: this.config.openRouterApiKey,
@@ -71,9 +66,43 @@ export class ScheduleService {
 
     const result = await aiService.generateWithRetry({ monthConfig, employees, requests, targetHoursByEmployee })
 
+    return this.persistGeneration(monthValue, monthConfig, result, targetQuarterHours)
+  }
+
+  async generateDeterministic(monthValue: string) {
+    const { monthConfig, employees, requests, targetHoursOverrides } = await this.loadMonthData(monthValue)
+    const { targetQuarterHours, targetHoursByEmployee } = this.computeTargets(monthConfig, employees, targetHoursOverrides)
+
+    const deterministicService = new DeterministicSchedulerService()
+    const result = await deterministicService.generateWithRetry({ monthConfig, employees, requests, targetHoursByEmployee })
+
+    return this.persistGeneration(monthValue, monthConfig, result, targetQuarterHours)
+  }
+
+  private computeTargets(
+    monthConfig: MonthConfigForValidation,
+    employees: EmployeeForValidation[],
+    targetHoursOverrides: Map<string, number>
+  ) {
+    const targetQuarterHours = computeTargetQuarterHours(monthConfig.days)
+    const targetHoursByEmployee: Record<string, number> = {}
+    for (const employee of employees) {
+      if (employee.contractType === 'uop') {
+        targetHoursByEmployee[employee.id] = targetHoursOverrides.get(employee.id) ?? targetQuarterHours / 4
+      }
+    }
+    return { targetQuarterHours, targetHoursByEmployee }
+  }
+
+  private async persistGeneration(
+    monthValue: string,
+    monthConfig: MonthConfigForValidation,
+    result: GenerateResult,
+    targetQuarterHours: number
+  ) {
     const diagnostics = this.buildDiagnostics(monthConfig, result.assignments, targetQuarterHours)
 
-    const schedule = await this.prisma.schedule.upsert({
+    return this.prisma.schedule.upsert({
       where: { monthValue },
       create: {
         monthValue,
@@ -89,8 +118,6 @@ export class ScheduleService {
         generationAttempts: result.attempts,
       },
     })
-
-    return schedule
   }
 
   async approve(monthValue: string) {

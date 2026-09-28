@@ -58,3 +58,24 @@ export interface ValidationResult {
   summaryList: EmployeeSummary[]
   status: string
 }
+
+export interface GenerationAttemptLog {
+  attemptNumber: number
+  timestamp: Date
+  issues: string[]
+  coverageIssues: string[]
+  succeeded: boolean
+}
+
+export interface GenerateResult {
+  assignments: AssignmentForValidation[]
+  attempts: GenerationAttemptLog[]
+  status: 'draft' | 'needsCorrection'
+}
+
+export interface GenerateInput {
+  monthConfig: MonthConfigForValidation
+  employees: EmployeeForValidation[]
+  requests: RequestForValidation[]
+  targetHoursByEmployee: Record<string, number>
+}

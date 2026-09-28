@@ -108,6 +108,39 @@ describe('balanceAssignments', () => {
     expect(result).toHaveLength(0)
   })
 
+  it('never transfers a shift to a UoP receiver that would push them over target, even when that receiver is the numerically closest fit', () => {
+    const monthConfig: MonthConfigForValidation = {
+      monthValue: '2024-10',
+      days: [
+        { date: '2024-10-01', isClosed: false, shifts: [shift({ id: 'day', requiredCashierCount: 1 })] },
+        { date: '2024-10-02', isClosed: false, shifts: [shift({ id: 'day', requiredCashierCount: 1 })] },
+        { date: '2024-10-03', isClosed: false, shifts: [shift({ id: 'day', requiredCashierCount: 1 })] },
+      ],
+    }
+    const employees = [
+      employee({ id: 'giver', contractType: 'uop', position: 'cashier' }),
+      // needs 22 quarter-hours to hit target: receiving a 32-quarter-hour shift would overshoot by 10
+      employee({ id: 'near-target', contractType: 'uop', position: 'cashier' }),
+      // needs 60 quarter-hours to hit target: receiving a 32-quarter-hour shift keeps them under by 28
+      employee({ id: 'far-from-target', contractType: 'uop', position: 'cashier' }),
+    ]
+    const assignments: AssignmentForValidation[] = [
+      { employeeId: 'giver', date: '2024-10-01', shiftId: 'day', role: 'cashier' },
+      { employeeId: 'near-target', date: '2024-10-02', shiftId: 'day', role: 'cashier' },
+      { employeeId: 'far-from-target', date: '2024-10-03', shiftId: 'day', role: 'cashier' },
+    ]
+    // giver: 32qh assigned, target 0h -> 32qh over (must give away)
+    // near-target: 32qh assigned, target (32+22)/4=13.5h -> needs 22 more
+    // far-from-target: 32qh assigned, target (32+60)/4=23h -> needs 60 more
+    const targetHoursByEmployee = { giver: 0, 'near-target': 13.5, 'far-from-target': 23 }
+
+    const result = balanceAssignments(assignments, monthConfig, employees, [], targetHoursByEmployee)
+
+    const giverAssignment = result.find((a) => a.date === '2024-10-01')
+    expect(giverAssignment?.employeeId).toBe('far-from-target')
+    expect(result.filter((a) => a.employeeId === 'near-target')).toHaveLength(1)
+  })
+
   it('does not assign a 7th working day in the same ISO week even to cover a gap', () => {
     const dates = ['2024-09-30', '2024-10-01', '2024-10-02', '2024-10-03', '2024-10-04', '2024-10-05', '2024-10-06']
     const monthConfig: MonthConfigForValidation = {

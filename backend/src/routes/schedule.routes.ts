@@ -25,6 +25,11 @@ scheduleRouter.post(
   validate({ params: monthValueParamsSchema }),
   asyncHandler(scheduleController.generate)
 )
+scheduleRouter.post(
+  '/:monthValue/generate-deterministic',
+  validate({ params: monthValueParamsSchema }),
+  asyncHandler(scheduleController.generateDeterministic)
+)
 scheduleRouter.get(
   '/:monthValue/validation',
   validate({ params: monthValueParamsSchema }),

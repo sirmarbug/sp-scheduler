@@ -83,10 +83,13 @@
       "message": "All shift assignments for this month will be removed. This action cannot be undone."
     },
     "generating": "Generating schedule with AI...",
+    "fillAuto": "Fill automatically (no AI)",
+    "generatingDeterministic": "Generating schedule (algorithm)...",
     "noOptions": "No allowed options for this employee and day",
     "unassign": "Remove assignment",
     "approveErrorTitle": "Could not approve schedule",
     "cellErrorTitle": "Could not save change",
+    "generateDeterministicErrorTitle": "Could not generate schedule",
     "validation": {
       "issues": "Critical issues",
       "coverageIssues": "Coverage shortfalls",

@@ -7,6 +7,9 @@ export const getSchedule = (monthValue: string) => get<ScheduleType>(`/schedule/
 
 export const generateSchedule = (monthValue: string) => post<ScheduleType>(`/schedule/${monthValue}/generate`)
 
+export const generateScheduleDeterministic = (monthValue: string) =>
+  post<ScheduleType>(`/schedule/${monthValue}/generate-deterministic`)
+
 export const approveSchedule = (monthValue: string) => post<ScheduleType>(`/schedule/${monthValue}/approve`)
 
 export const clearSchedule = (monthValue: string) => post<ScheduleType>(`/schedule/${monthValue}/clear`)

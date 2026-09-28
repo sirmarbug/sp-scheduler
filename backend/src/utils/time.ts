@@ -39,6 +39,18 @@ export function resolveTargetQuarterHours(
   return targetHours * 4
 }
 
+export function computeQuarterHoursDelta(
+  employeeId: string,
+  assignments: AssignmentForValidation[],
+  days: DayForValidation[],
+  targetHoursByEmployee: Record<string, number>
+): number {
+  const targetHours = targetHoursByEmployee[employeeId]
+  if (targetHours === undefined) return 0
+  const actualQuarterHours = computeEmployeeQuarterHours(assignments, employeeId, days)
+  return actualQuarterHours - targetHours * 4
+}
+
 export function computeDurationQuarterHours(start: string, end: string): number {
   const [startHours, startMinutes] = start.split(':').map(Number)
   const [endHours, endMinutes] = end.split(':').map(Number)

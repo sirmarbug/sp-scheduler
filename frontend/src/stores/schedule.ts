@@ -1,6 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { approveSchedule, clearSchedule, generateSchedule, getSchedule, updateCell } from '@/api/schedule'
+import {
+  approveSchedule,
+  clearSchedule,
+  generateSchedule,
+  generateScheduleDeterministic,
+  getSchedule,
+  updateCell,
+} from '@/api/schedule'
 import { useNotification } from '@/composables/useNotification'
 import { i18n } from '@/locales'
 import { useValidationStore } from '@/stores/validation'
@@ -14,6 +21,7 @@ export const useScheduleStore = defineStore('schedule', () => {
   const current = ref<ScheduleType | null>(null)
   const loading = ref(false)
   const generating = ref(false)
+  const generatingDeterministic = ref(false)
 
   async function fetchByMonthValue(monthValue: string) {
     loading.value = true
@@ -31,6 +39,21 @@ export const useScheduleStore = defineStore('schedule', () => {
     await request()
     generating.value = false
     if (isFailed.value || !data.value) return false
+    current.value = data.value
+    const validationStore = useValidationStore()
+    await validationStore.refresh(monthValue)
+    return true
+  }
+
+  async function generateDeterministic(monthValue: string) {
+    generatingDeterministic.value = true
+    const { data, error, request, isFailed } = generateScheduleDeterministic(monthValue)
+    await request()
+    generatingDeterministic.value = false
+    if (isFailed.value || !data.value) {
+      negative(t('schedule.generateDeterministicErrorTitle'), getErrorMessage(error.value))
+      return false
+    }
     current.value = data.value
     const validationStore = useValidationStore()
     await validationStore.refresh(monthValue)
@@ -71,5 +94,16 @@ export const useScheduleStore = defineStore('schedule', () => {
     return true
   }
 
-  return { current, loading, generating, fetchByMonthValue, generate, approve, clear, updateAssignment }
+  return {
+    current,
+    loading,
+    generating,
+    generatingDeterministic,
+    fetchByMonthValue,
+    generate,
+    generateDeterministic,
+    approve,
+    clear,
+    updateAssignment,
+  }
 })
