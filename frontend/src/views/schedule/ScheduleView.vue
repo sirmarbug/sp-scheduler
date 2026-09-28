@@ -35,6 +35,10 @@ const hasCurrentAssignment = computed(() =>
 
 const isApproved = computed(() => schedule.value?.status === 'approved')
 
+const canApprove = computed(
+  () => (validationResult.value?.issues.length ?? 1) === 0 && (validationResult.value?.coverageIssues.length ?? 1) === 0
+)
+
 const shiftLabels = computed(() => {
   const labels: Record<string, string> = {}
   for (const day of monthConfig.value?.days ?? []) {
@@ -95,7 +99,7 @@ onMounted(loadAll)
       <div class="text-h6">{{ t('schedule.title') }}</div>
       <input v-model="monthValue" type="month" @change="loadAll" />
       <q-btn color="primary" :loading="generating" :label="t('schedule.generate')" @click="handleGenerate" />
-      <q-btn color="secondary" :label="t('schedule.approve')" @click="handleApprove" />
+      <q-btn color="secondary" :disable="!canApprove || isApproved" :label="t('schedule.approve')" @click="handleApprove" />
       <q-btn color="negative" flat :disable="isApproved" :label="t('schedule.clear')" @click="handleClear" />
     </div>
 

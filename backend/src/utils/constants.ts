@@ -51,8 +51,8 @@ export const HARD_RULE_DESCRIPTIONS = [
   'Respektowanie blokad (avoid).',
   'Rolę kasjera pełni pracownik ze stanowiskiem cashier, albo manager z extraRole cashierEligible (na każdej zmianie); rolę kierownika pełni manager, albo cashier z extraRole managerShift1 (tylko bucket=first/id=morning), albo managerShift2 (tylko bucket=second/id=evening).',
   'Maksymalnie 6 dni pracy w tygodniu ISO na pracownika.',
-  'Suma godzin UoP w miesiącu nie może przekroczyć celu godzinowego (docelowo równa).',
-  'Liczba przydzielonych osób w danej roli na zmianie nie może przekroczyć requiredRoles.',
+  'Suma godzin przydzielonych każdemu pracownikowi UoP w miesiącu musi być DOKŁADNIE równa jego celowi z targetHoursByEmployee — zarówno niedomiar, jak i przekroczenie są błędem krytycznym blokującym zatwierdzenie grafiku, nie tylko przekroczenie celu. Dobierz liczbę i rodzaj zmian per pracownik UoP tak, aby suma durationQuarterHours przydzielonych mu zmian dała dokładnie targetHoursByEmployee[employeeId] * 4 (target jest podany w godzinach, durationQuarterHours w kwadransach).',
+  'Liczba przydzielonych osób w danej roli na każdej aktywnej (enabled) zmianie musi dokładnie odpowiadać wymaganej liczbie (requiredManagerCount/requiredCashierCount) — zarówno nadmiar, jak i pozostawienie slotu bez obsady (niedobór) są błędem blokującym zatwierdzenie grafiku.',
 ] as const
 
 export const SOFT_RULE_PRIORITY_DESCRIPTIONS = [

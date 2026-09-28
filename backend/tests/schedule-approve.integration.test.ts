@@ -99,4 +99,70 @@ describe('POST /schedule/:monthValue/approve', () => {
     expect(res.status).toBe(200)
     expect(res.body.status).toBe('approved')
   })
+
+  it('rejects approval when a required slot is left uncovered, even with no critical issues', async () => {
+    await prisma.employee.deleteMany({})
+    const zlecenieEmployee = await prisma.employee.create({
+      data: { name: 'Marek', contractType: 'zlecenie', position: 'cashier', extraRoles: [] },
+    })
+
+    await prisma.monthConfig.update({
+      where: { monthValue },
+      data: {
+        days: [
+          {
+            date: '2024-10-01',
+            isClosed: false,
+            shifts: [
+              {
+                id: 'morning',
+                label: '1 zmiana',
+                start: '07:00',
+                end: '15:00',
+                shortLabel: 'I',
+                durationQuarterHours: 32,
+                balanceBucket: 'first',
+                type: 'auto',
+                enabled: true,
+                requiredManagerCount: 0,
+                requiredCashierCount: 1,
+              },
+              {
+                id: 'evening',
+                label: '2 zmiana',
+                start: '13:00',
+                end: '21:00',
+                shortLabel: 'II',
+                durationQuarterHours: 32,
+                balanceBucket: 'second',
+                type: 'auto',
+                enabled: true,
+                requiredManagerCount: 0,
+                requiredCashierCount: 1,
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    await prisma.schedule.create({
+      data: {
+        monthValue,
+        assignments: [{ employeeId: zlecenieEmployee.id, date: '2024-10-01', shiftId: 'morning', role: 'cashier' }],
+        status: 'draft',
+      },
+    })
+
+    const res = await request(app)
+      .post(`/schedule/${monthValue}/approve`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send()
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('schedule.approve.hasIssues')
+
+    const stored = await prisma.schedule.findUnique({ where: { monthValue } })
+    expect(stored?.status).toBe('draft')
+  })
 })

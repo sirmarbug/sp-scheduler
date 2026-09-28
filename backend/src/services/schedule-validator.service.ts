@@ -1,27 +1,18 @@
 import dayjs from '../config/dayjs.js'
 import { canFillRole } from '../utils/roleEligibility.js'
 import { isAvoided, isPreferred } from '../utils/requestMatching.js'
+import { findDay, findShift } from '../utils/scheduleLookup.js'
 import { computeEmployeeQuarterHours, resolveTargetQuarterHours } from '../utils/time.js'
 import type {
   AssignmentForValidation,
-  DayForValidation,
   EmployeeForValidation,
   EmployeeSummary,
   MonthConfigForValidation,
   RequestForValidation,
-  ShiftForValidation,
   ValidationResult,
 } from '../types/schedule.js'
 
 const MAX_WORK_DAYS_PER_ISO_WEEK = 6
-
-function findDay(monthConfig: MonthConfigForValidation, date: string): DayForValidation | undefined {
-  return monthConfig.days.find((d) => d.date === date)
-}
-
-function findShift(day: DayForValidation | undefined, shiftId: string): ShiftForValidation | undefined {
-  return day?.shifts.find((s) => s.id === shiftId)
-}
 
 export function validate(
   assignments: AssignmentForValidation[],

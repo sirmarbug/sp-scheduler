@@ -2,6 +2,7 @@ import axios from 'axios'
 import { logger } from '../config/logger.js'
 import { HARD_RULE_DESCRIPTIONS, SOFT_RULE_PRIORITY_DESCRIPTIONS } from '../utils/constants.js'
 import { aiResponseSchema } from '../schemas/ai-response.schema.js'
+import { balanceAssignments } from './schedule-balancer.service.js'
 import { validate } from './schedule-validator.service.js'
 import type {
   AssignmentForValidation,
@@ -68,9 +69,16 @@ export class AiSchedulerService {
     ]
 
     if (previousAttempt) {
+      const feedbackParts: string[] = []
+      if (previousAttempt.issues.length > 0) {
+        feedbackParts.push(`błędy krytyczne: ${JSON.stringify(previousAttempt.issues)}`)
+      }
+      if (previousAttempt.coverageIssues.length > 0) {
+        feedbackParts.push(`niedobory obsady (puste sloty do uzupełnienia): ${JSON.stringify(previousAttempt.coverageIssues)}`)
+      }
       messages.push({
         role: 'user',
-        content: `Poprzednia próba naruszyła następujące reguły: ${JSON.stringify(previousAttempt.issues)}. Popraw przydział, zachowując pozostałe przydziały tam, gdzie to możliwe.`,
+        content: `Poprzednia próba miała następujące problemy — ${feedbackParts.join('; ')}. Popraw przydział tak, aby wszystkie te problemy zniknęły, zachowując pozostałe przydziały tam, gdzie to możliwe.`,
       })
     }
 
@@ -127,7 +135,14 @@ export class AiSchedulerService {
       let assignments: AssignmentForValidation[]
       try {
         const raw = await this.callOpenRouter(messages)
-        assignments = this.parseResponse(raw, input.monthConfig)
+        const parsed = this.parseResponse(raw, input.monthConfig)
+        assignments = balanceAssignments(
+          parsed,
+          input.monthConfig,
+          input.employees,
+          input.requests,
+          input.targetHoursByEmployee
+        )
       } catch (err) {
         logger.warn({ err, attemptNumber }, 'AI generation attempt failed to produce a valid response')
         const attempt: GenerationAttemptLog = {
@@ -142,13 +157,14 @@ export class AiSchedulerService {
         continue
       }
 
-      const validation = validate(assignments, input.monthConfig, input.employees, input.requests)
+      const targetHoursOverrides = new Map(Object.entries(input.targetHoursByEmployee))
+      const validation = validate(assignments, input.monthConfig, input.employees, input.requests, targetHoursOverrides)
       const attempt: GenerationAttemptLog = {
         attemptNumber,
         timestamp: new Date(),
         issues: validation.issues,
         coverageIssues: validation.coverageIssues,
-        succeeded: validation.issues.length === 0,
+        succeeded: validation.issues.length === 0 && validation.coverageIssues.length === 0,
       }
       attempts.push(attempt)
       lastAssignments = assignments

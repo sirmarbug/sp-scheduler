@@ -95,11 +95,12 @@ export class ScheduleService {
 
   async approve(monthValue: string) {
     const validation = await this.validateMonth(monthValue)
-    if (validation.issues.length > 0) {
+    if (validation.issues.length > 0 || validation.coverageIssues.length > 0) {
+      const allProblems = [...validation.issues, ...validation.coverageIssues]
       throw new AppError(
         'schedule.approve.hasIssues',
         409,
-        `Nie można zatwierdzić grafiku: ${validation.issues.join('; ')}`
+        `Nie można zatwierdzić grafiku: ${allProblems.join('; ')}`
       )
     }
 

@@ -26,6 +26,7 @@ describe('POST /schedule/:monthValue/generate', () => {
     await prisma.request.deleteMany({})
     await prisma.employee.deleteMany({})
     await prisma.monthConfig.deleteMany({})
+    await prisma.targetHoursOverride.deleteMany({})
     await prisma.user.deleteMany({})
 
     const registerRes = await request(app)
@@ -92,23 +93,18 @@ describe('POST /schedule/:monthValue/generate', () => {
     expect(res.body.generationAttempts[0].succeeded).toBe(true)
   })
 
-  it('retries with feedback after a rule-violating first attempt, then succeeds', async () => {
-    const invalidBody = aiChatResponse({
-      assignments: [
-        { employeeId, date: '2024-10-01', shiftId: 'morning', role: 'cashier' },
-        { employeeId, date: '2024-10-01', shiftId: 'morning', role: 'cashier' },
-      ],
-    })
-    const validBody = aiChatResponse({ assignments: [{ employeeId, date: '2024-10-01', shiftId: 'morning', role: 'cashier' }] })
-
-    let secondRequestBody: unknown
-    nock(OPENROUTER_URL).post(OPENROUTER_PATH).reply(200, invalidBody)
+  it('auto-repairs a duplicate/rule-violating AI draft and still succeeds on the first attempt', async () => {
     nock(OPENROUTER_URL)
       .post(OPENROUTER_PATH)
-      .reply(200, (_uri, body) => {
-        secondRequestBody = body
-        return validBody
-      })
+      .reply(
+        200,
+        aiChatResponse({
+          assignments: [
+            { employeeId, date: '2024-10-01', shiftId: 'morning', role: 'cashier' },
+            { employeeId, date: '2024-10-01', shiftId: 'morning', role: 'cashier' },
+          ],
+        })
+      )
 
     const res = await request(app)
       .post(`/schedule/${monthValue}/generate`)
@@ -117,21 +113,41 @@ describe('POST /schedule/:monthValue/generate', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.status).toBe('draft')
-    expect(res.body.generationAttempts).toHaveLength(2)
-    expect(res.body.generationAttempts[0].succeeded).toBe(false)
-    expect(res.body.generationAttempts[1].succeeded).toBe(true)
-    const secondMessages = (secondRequestBody as { messages: Array<{ content: string }> }).messages
-    expect(secondMessages.some((m) => m.content.includes('Poprzednia próba naruszyła'))).toBe(true)
+    expect(res.body.generationAttempts).toHaveLength(1)
+    expect(res.body.generationAttempts[0].succeeded).toBe(true)
+    expect(res.body.assignments).toHaveLength(1)
   })
 
-  it('marks the schedule as needsCorrection after exhausting all retries', async () => {
-    const invalidBody = aiChatResponse({
-      assignments: [
-        { employeeId, date: '2024-10-01', shiftId: 'morning', role: 'cashier' },
-        { employeeId, date: '2024-10-01', shiftId: 'morning', role: 'cashier' },
-      ],
-    })
-    nock(OPENROUTER_URL).post(OPENROUTER_PATH).times(3).reply(200, invalidBody)
+  it('auto-fills a slot the AI left completely uncovered and still succeeds on the first attempt', async () => {
+    nock(OPENROUTER_URL).post(OPENROUTER_PATH).reply(200, aiChatResponse({ assignments: [] }))
+
+    const res = await request(app)
+      .post(`/schedule/${monthValue}/generate`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send()
+
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe('draft')
+    expect(res.body.generationAttempts).toHaveLength(1)
+    expect(res.body.generationAttempts[0].succeeded).toBe(true)
+    expect(res.body.assignments).toEqual([{ employeeId, date: '2024-10-01', shiftId: 'morning', role: 'cashier' }])
+  })
+
+  it('marks the schedule as needsCorrection when a UoP target is unreachable even after balancing, and feeds back the mismatch', async () => {
+    await prisma.employee.update({ where: { id: employeeId }, data: { contractType: 'uop' } })
+    await prisma.targetHoursOverride.create({ data: { employeeId, monthValue, hours: 100 } })
+
+    let finalRequestBody: unknown
+    nock(OPENROUTER_URL)
+      .post(OPENROUTER_PATH)
+      .times(2)
+      .reply(200, aiChatResponse({ assignments: [{ employeeId, date: '2024-10-01', shiftId: 'morning', role: 'cashier' }] }))
+    nock(OPENROUTER_URL)
+      .post(OPENROUTER_PATH)
+      .reply(200, (_uri, body) => {
+        finalRequestBody = body
+        return aiChatResponse({ assignments: [{ employeeId, date: '2024-10-01', shiftId: 'morning', role: 'cashier' }] })
+      })
 
     const res = await request(app)
       .post(`/schedule/${monthValue}/generate`)
@@ -142,6 +158,8 @@ describe('POST /schedule/:monthValue/generate', () => {
     expect(res.body.status).toBe('needsCorrection')
     expect(res.body.generationAttempts).toHaveLength(3)
     expect(res.body.generationAttempts.every((a: { succeeded: boolean }) => !a.succeeded)).toBe(true)
+    const finalMessages = (finalRequestBody as { messages: Array<{ content: string }> }).messages
+    expect(finalMessages.some((m) => m.content.includes('błędy krytyczne') && m.content.includes('100h'))).toBe(true)
   })
 
   it('treats an invalid JSON response as a failed attempt without crashing', async () => {
