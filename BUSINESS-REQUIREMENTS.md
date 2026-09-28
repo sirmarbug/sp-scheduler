@@ -90,13 +90,25 @@ Grafik jest **niepoprawny**, jeśli którakolwiek z poniższych reguł jest zła
 
 ## 5. Reguły miękkie / priorytety optymalizacji
 
-Kolejność ważności przy wyborze "najlepszego" grafiku (od najważniejszej):
+Przydział realizowany jest w **dwóch fazach**, żeby reguła 5 (preferowanie
+UoP) była gwarantowana strukturalnie, a nie tylko jako tie-break w
+punktacji:
+
+- **Faza 1 — tylko UoP.** Algorytm najpierw próbuje obsadzić jak najwięcej
+  slotów wyłącznie pracownikami UoP (z zachowaniem reguł twardych, w tym
+  limitu godzin — reguła twarda 6 w sekcji 4).
+- **Faza 2 — pełna pula.** Sloty, których faza 1 nie obsadziła (bo żaden
+  UoP nie miał uprawnień/dostępności/zapasu godzin), trafiają do
+  przydziału z udziałem zlecenia (i ewentualnego pozostałego zapasu UoP).
+
+W obrębie każdej z faz obowiązuje poniższa kolejność ważności przy
+wyborze "najlepszego" kandydata na dany slot (od najważniejszej):
 
 1. **Maksymalne pokrycie slotów.** Priorytet nr 1 — obsadzić jak najwięcej wymaganych miejsc, nawet jeśli oznacza to gorszy wynik w pozostałych kryteriach.
 2. **Dokładność godzin UoP.** Wśród grafików z takim samym pokryciem, preferowany jest ten, w którym każdy pracownik UoP ma godziny **równe** celowi miesięcznemu (nie mniej, nie więcej).
 3. **Balans "first" vs "second".** Dla każdego pracownika: różnica między liczbą zmian w buckecie `first` a liczbą zmian w buckecie `second` powinna być jak najmniejsza (unikanie sytuacji, gdy ktoś pracuje wyłącznie rano albo wyłącznie wieczorem).
 4. **Zgodność z preferencjami (`prefer`).** Przydzielenie pracownika na zmianę, o którą prosił, jest punktowane wyżej niż przydzielenie go na dowolną zmianę danego dnia, o którą prosił ("cały dzień" jako preferencja jest słabszym trafieniem niż konkretna zmiana).
-5. **Preferowanie UoP nad zlecenie** przy wyborze, kogo przydzielić do slotu, gdy inne czynniki są zbliżone (umowa UoP ma z założenia mieć wypełniony etat, zlecenie jest elastyczne/dodatkowe).
+5. **Preferowanie UoP nad zlecenie** przy wyborze, kogo przydzielić do slotu, gdy inne czynniki są zbliżone (umowa UoP ma z założenia mieć wypełniony etat, zlecenie jest elastyczne/dodatkowe) — w praktyce rozstrzygane już przez podział na fazy powyżej; ten punkt pozostaje jako tie-break wewnątrz fazy 2, gdyby kilku kandydatów (w tym resztka UoP z zapasem godzin) rywalizowało o ten sam slot.
 6. **Równomierne rozłożenie godzin** pomiędzy pracowników — unikanie sytuacji, w której jeden pracownik zbiera nadmiarowo dużo godzin, a inny bardzo mało.
 7. **Kara za nieobsadzony slot** — pozostawienie miejsca bez przydziału jest zawsze gorsze niż jakiekolwiek dopuszczalne przydzielenie kogoś (przy zachowaniu reguł twardych).
 

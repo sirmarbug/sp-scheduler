@@ -59,3 +59,48 @@ export function computeDurationQuarterHours(start: string, end: string): number 
   const diffMinutes = endTotal >= startTotal ? endTotal - startTotal : endTotal + 24 * 60 - startTotal
   return Math.round(diffMinutes / 15)
 }
+
+/** Suma kwadransów wszystkich wymaganych obsad w miesiącu (otwarte dni, włączone zmiany). */
+export function computeTotalSlotQuarterHours(days: DayForValidation[]): number {
+  let total = 0
+  for (const day of days) {
+    if (day.isClosed) continue
+    for (const shift of day.shifts) {
+      if (!shift.enabled) continue
+      total += (shift.requiredManagerCount + shift.requiredCashierCount) * shift.durationQuarterHours
+    }
+  }
+  return total
+}
+
+/**
+ * Sprawiedliwy udział godzin (w kwadransach) dla każdego pracownika `zlecenie`: równy podział
+ * tego, co zostaje z puli slotów po pokryciu celów UoP. To cel **miękki** — sygnał w punktacji
+ * i w balanserze, nigdy filtr odrzucający kandydata, bo maksymalne pokrycie slotów pozostaje
+ * priorytetem nr 1 (BUSINESS-REQUIREMENTS.md sekcja 5, reguła 1).
+ */
+export function computeFairShareQuarterHours(
+  days: DayForValidation[],
+  employees: EmployeeForValidation[],
+  targetHoursByEmployee: Record<string, number>
+): Record<string, number> {
+  const zlecenieEmployees = employees.filter((employee) => employee.contractType === 'zlecenie')
+  if (zlecenieEmployees.length === 0) return {}
+
+  let uopCommittedQuarterHours = 0
+  for (const employee of employees) {
+    if (employee.contractType !== 'uop') continue
+    const targetHours = targetHoursByEmployee[employee.id]
+    if (targetHours === undefined) continue
+    uopCommittedQuarterHours += targetHours * 4
+  }
+
+  const remaining = Math.max(0, computeTotalSlotQuarterHours(days) - uopCommittedQuarterHours)
+  const share = remaining / zlecenieEmployees.length
+
+  const fairShareByEmployee: Record<string, number> = {}
+  for (const employee of zlecenieEmployees) {
+    fairShareByEmployee[employee.id] = share
+  }
+  return fairShareByEmployee
+}

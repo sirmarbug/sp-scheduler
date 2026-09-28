@@ -2,7 +2,7 @@ import dayjs from '../config/dayjs.js'
 import { canFillRole } from '../utils/roleEligibility.js'
 import { isAvoided } from '../utils/requestMatching.js'
 import { findDay, findShift } from '../utils/scheduleLookup.js'
-import { computeEmployeeQuarterHours, computeQuarterHoursDelta } from '../utils/time.js'
+import { computeEmployeeQuarterHours, computeFairShareQuarterHours, computeQuarterHoursDelta } from '../utils/time.js'
 import { balanceAssignments } from './schedule-balancer.service.js'
 import { validate } from './schedule-validator.service.js'
 import type {
@@ -17,6 +17,8 @@ import type {
 } from '../types/schedule.js'
 
 const MAX_WORK_DAYS_PER_ISO_WEEK = 6
+/** Szerokość strefy martwej wokół sprawiedliwego udziału zlecenia: 32 kwadranse = 8h = jedna pełna zmiana. */
+const FAIR_SHARE_TOLERANCE_QUARTER_HOURS = 32
 const DEFAULT_MAX_ATTEMPTS = 2
 const DEFAULT_MAX_STEPS_PER_ATTEMPT = 20_000
 const DEFAULT_TIME_BUDGET_MS_PER_ATTEMPT = 3_000
@@ -43,7 +45,7 @@ interface SearchOutcome {
   hitBudget: boolean
 }
 
-type CandidateScore = [number, number, number, number, number]
+type CandidateScore = [number, number, number, number, number, number]
 
 function isoWeekKeyOf(date: string): string {
   return `${dayjs(date).isoWeekYear()}-W${dayjs(date).isoWeek()}`
@@ -131,7 +133,8 @@ function scoreCandidate(
   working: AssignmentForValidation[],
   monthConfig: MonthConfigForValidation,
   requests: RequestForValidation[],
-  targetHoursByEmployee: Record<string, number>
+  targetHoursByEmployee: Record<string, number>,
+  fairShareByEmployee: Record<string, number>
 ): CandidateScore {
   // Surowa, podpisana delta (nie reszta po przydziale) — im bardziej ujemna, tym dalej
   // pracownik jest od celu, tym wyższy priorytet. Użycie |delta + duration| faworyzowałoby
@@ -157,7 +160,17 @@ function scoreCandidate(
   const contractFitness = employee.contractType === 'uop' ? 0 : 1
   const loadBalanceFitness = computeEmployeeQuarterHours(working, employee.id, monthConfig.days)
 
-  return [hoursFitness, firstSecondFitness, preferenceFitness, contractFitness, loadBalanceFitness]
+  // Odległość od sprawiedliwego udziału, skwantyzowana co jedną zmianę: kto mieści się w paśmie
+  // ±1 zmiany wokół swojego udziału, remisuje tutaj i o wyborze decydują dalsze kryteria (balans
+  // first/second, preferencje). Kto odstaje o pełną zmianę lub więcej — wygrywa bezwarunkowo.
+  // Kwantyzacja zamiast tolerancji w komparatorze, bo porównanie musi zostać przechodnie.
+  const fairShare = fairShareByEmployee[employee.id]
+  const fairShareFitness =
+    employee.contractType === 'zlecenie' && fairShare !== undefined
+      ? Math.trunc((loadBalanceFitness - fairShare) / FAIR_SHARE_TOLERANCE_QUARTER_HOURS)
+      : 0
+
+  return [hoursFitness, fairShareFitness, firstSecondFitness, preferenceFitness, contractFitness, loadBalanceFitness]
 }
 
 function compareScores(a: CandidateScore, b: CandidateScore): number {
@@ -184,6 +197,7 @@ function backtrackSearch(
   monthConfig: MonthConfigForValidation,
   requests: RequestForValidation[],
   targetHoursByEmployee: Record<string, number>,
+  fairShareByEmployee: Record<string, number>,
   budget: SearchBudget
 ): SearchOutcome {
   const working: AssignmentForValidation[] = baseAssignments.map((a) => ({ ...a }))
@@ -233,7 +247,10 @@ function backtrackSearch(
     const slot = slots[chosenIndex]
     const shift = chosenShift!
     const scored = chosenCandidates
-      .map((employee) => ({ employee, score: scoreCandidate(employee, slot, shift, working, monthConfig, requests, targetHoursByEmployee) }))
+      .map((employee) => ({
+        employee,
+        score: scoreCandidate(employee, slot, shift, working, monthConfig, requests, targetHoursByEmployee, fairShareByEmployee),
+      }))
       .sort((a, b) => compareScores(a.score, b.score))
 
     assignedFlags[chosenIndex] = true
@@ -292,22 +309,45 @@ export class DeterministicSchedulerService {
     const maxSteps = this.config.maxStepsPerAttempt ?? DEFAULT_MAX_STEPS_PER_ATTEMPT
     const timeBudgetMs = this.config.timeBudgetMsPerAttempt ?? DEFAULT_TIME_BUDGET_MS_PER_ATTEMPT
     const targetHoursOverrides = new Map(Object.entries(input.targetHoursByEmployee))
+    const uopEmployees = input.employees.filter((e) => e.contractType === 'uop')
+    // Cel miękki dla zlecenia: równy podział tego, co zostaje po celach UoP. Liczony raz —
+    // zależy wyłącznie od konfiguracji miesiąca i składu zespołu, nie od stanu przydziału.
+    const fairShareByEmployee = computeFairShareQuarterHours(input.monthConfig.days, input.employees, input.targetHoursByEmployee)
 
     let working: AssignmentForValidation[] = []
     let remainingSlots = allSlots
 
     for (let attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber += 1) {
-      const search = backtrackSearch(
+      // Faza 1: wyczerpać możliwości przydziału wyłącznie pracownikom UoP, zanim
+      // zlecenie w ogóle wejdzie do gry (reguła miękka 5 — UoP ma priorytet).
+      const uopSearch = backtrackSearch(
         remainingSlots,
         working,
+        uopEmployees,
+        input.monthConfig,
+        input.requests,
+        input.targetHoursByEmployee,
+        fairShareByEmployee,
+        { maxSteps, deadline: Date.now() + timeBudgetMs }
+      )
+      const afterUop = [...working, ...uopSearch.assignments]
+      const slotsAfterUop = computeStillUnfilledSlots(remainingSlots, uopSearch.assignments)
+
+      // Faza 2: dobija resztę slotów pełną pulą (zlecenie + ewentualny zapas UoP,
+      // gdyby faza 1 nie wyczerpała budżetu do końca) — scoring nadal faworyzuje
+      // niedociążonego UoP, więc to zabezpieczenie, nie furtka dla zlecenie.
+      const fillSearch = backtrackSearch(
+        slotsAfterUop,
+        afterUop,
         input.employees,
         input.monthConfig,
         input.requests,
         input.targetHoursByEmployee,
+        fairShareByEmployee,
         { maxSteps, deadline: Date.now() + timeBudgetMs }
       )
 
-      const combined = [...working, ...search.assignments]
+      const combined = [...afterUop, ...fillSearch.assignments]
       const balanced = balanceAssignments(combined, input.monthConfig, input.employees, input.requests, input.targetHoursByEmployee)
       const validation = validate(balanced, input.monthConfig, input.employees, input.requests, targetHoursOverrides)
       const succeeded = validation.issues.length === 0 && validation.coverageIssues.length === 0
@@ -325,7 +365,7 @@ export class DeterministicSchedulerService {
       if (succeeded) {
         return { assignments: balanced, attempts, status: 'draft' }
       }
-      if (!search.hitBudget) break
+      if (!uopSearch.hitBudget && !fillSearch.hitBudget) break
 
       remainingSlots = computeStillUnfilledSlots(allSlots, working)
       if (remainingSlots.length === 0) break

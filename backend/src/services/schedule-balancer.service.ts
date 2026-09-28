@@ -2,7 +2,7 @@ import dayjs from '../config/dayjs.js'
 import { canFillRole } from '../utils/roleEligibility.js'
 import { isAvoided } from '../utils/requestMatching.js'
 import { findDay, findShift } from '../utils/scheduleLookup.js'
-import { computeQuarterHoursDelta } from '../utils/time.js'
+import { computeEmployeeQuarterHours, computeFairShareQuarterHours, computeQuarterHoursDelta } from '../utils/time.js'
 import type {
   AssignmentForValidation,
   EmployeeForValidation,
@@ -26,6 +26,22 @@ function workDaysInIsoWeek(working: AssignmentForValidation[], employeeId: strin
     days.add(a.date)
   }
   return days
+}
+
+/**
+ * Odchylenie pracownika `zlecenie` od jego sprawiedliwego udziału, w kwadransach
+ * (dodatnie = ponad udziałem). Zwraca `0`, gdy udział nie jest zdefiniowany — wtedy
+ * balanser zachowuje się jak przed wprowadzeniem udziałów.
+ */
+function fairShareDelta(
+  employeeId: string,
+  assignments: AssignmentForValidation[],
+  monthConfig: MonthConfigForValidation,
+  fairShareByEmployee: Record<string, number>
+): number {
+  const share = fairShareByEmployee[employeeId]
+  if (share === undefined) return 0
+  return computeEmployeeQuarterHours(assignments, employeeId, monthConfig.days) - share
 }
 
 function isEligibleForSlot(
@@ -75,12 +91,17 @@ function dropInvalidAssignments(
   return result
 }
 
-/** Usuwa nadmiarowe przypisania per slot, preferując pracowników UoP ponad celem, potem zlecenie. */
+/**
+ * Usuwa nadmiarowe przypisania per slot, zaczynając od tych, którym nadmiar najbardziej szkodzi.
+ * Kolejność warstw (od pierwszej do usunięcia): UoP ponad celem → zlecenie ponad udziałem →
+ * zlecenie poniżej udziału → UoP poniżej celu. W obrębie warstwy decyduje wielkość nadwyżki.
+ */
 function trimExcessCoverage(
   assignments: AssignmentForValidation[],
   monthConfig: MonthConfigForValidation,
   employeeById: Map<string, EmployeeForValidation>,
-  targetHoursByEmployee: Record<string, number>
+  targetHoursByEmployee: Record<string, number>,
+  fairShareByEmployee: Record<string, number>
 ): AssignmentForValidation[] {
   let result = [...assignments]
 
@@ -97,14 +118,14 @@ function trimExcessCoverage(
         const ranked = slotAssignments
           .map((assignment) => {
             const employee = employeeById.get(assignment.employeeId)
-            let removalScore = 500 // domyślnie zlecenie: bezpieczne do usunięcia
             if (employee?.contractType === 'uop' && targetHoursByEmployee[employee.id] !== undefined) {
               const delta = computeQuarterHoursDelta(employee.id, result, monthConfig.days, targetHoursByEmployee)
-              removalScore = delta > 0 ? 1000 + delta : delta - 1000
+              return { assignment, tier: delta > 0 ? 3 : 0, surplus: delta }
             }
-            return { assignment, removalScore }
+            const delta = fairShareDelta(assignment.employeeId, result, monthConfig, fairShareByEmployee)
+            return { assignment, tier: delta >= 0 ? 2 : 1, surplus: delta }
           })
-          .sort((a, b) => b.removalScore - a.removalScore)
+          .sort((a, b) => (a.tier !== b.tier ? b.tier - a.tier : b.surplus - a.surplus))
 
         const toRemove = new Set(ranked.slice(0, excessCount).map((r) => r.assignment))
         result = result.filter((a) => !toRemove.has(a))
@@ -123,7 +144,8 @@ function pickBestCoverageCandidate(
   working: AssignmentForValidation[],
   requests: RequestForValidation[],
   monthConfig: MonthConfigForValidation,
-  targetHoursByEmployee: Record<string, number>
+  targetHoursByEmployee: Record<string, number>,
+  fairShareByEmployee: Record<string, number>
 ): EmployeeForValidation | null {
   const eligible = employees.filter((e) => isEligibleForSlot(e, shift, role, date, working, requests))
   if (eligible.length === 0) return null
@@ -133,7 +155,8 @@ function pickBestCoverageCandidate(
       const delta = computeQuarterHoursDelta(employee.id, working, monthConfig.days, targetHoursByEmployee)
       return { employee, priority: 0, delta }
     }
-    return { employee, priority: 1, delta: 0 }
+    // Lukę obsady dostaje zleceniobiorca najdalej poniżej udziału, nie pierwszy z tablicy.
+    return { employee, priority: 1, delta: fairShareDelta(employee.id, working, monthConfig, fairShareByEmployee) }
   })
 
   scored.sort((a, b) => (a.priority !== b.priority ? a.priority - b.priority : a.delta - b.delta))
@@ -146,7 +169,8 @@ function fillCoverageGaps(
   monthConfig: MonthConfigForValidation,
   employees: EmployeeForValidation[],
   requests: RequestForValidation[],
-  targetHoursByEmployee: Record<string, number>
+  targetHoursByEmployee: Record<string, number>,
+  fairShareByEmployee: Record<string, number>
 ): AssignmentForValidation[] {
   const result = [...assignments]
 
@@ -167,7 +191,8 @@ function fillCoverageGaps(
             result,
             requests,
             monthConfig,
-            targetHoursByEmployee
+            targetHoursByEmployee,
+            fairShareByEmployee
           )
           if (!candidate) break
           result.push({ employeeId: candidate.id, date: day.date, shiftId: shift.id, role })
@@ -189,6 +214,7 @@ function pickReceiver(
   requests: RequestForValidation[],
   monthConfig: MonthConfigForValidation,
   targetHoursByEmployee: Record<string, number>,
+  fairShareByEmployee: Record<string, number>,
   duration: number,
   excludeEmployeeId: string
 ): EmployeeForValidation | null {
@@ -205,8 +231,15 @@ function pickReceiver(
 
   if (uopReceivers.length > 0) return uopReceivers[0].employee
 
-  const zlecenieReceiver = eligible.find((e) => e.contractType === 'zlecenie')
-  return zlecenieReceiver ?? null
+  // Oddana zmiana trafia do zleceniobiorcy najdalej poniżej sprawiedliwego udziału — wcześniej
+  // decydowała tu kolejność w tablicy `employees`, co systematycznie faworyzowało osoby
+  // wcześniej dodane do bazy i było głównym źródłem rozjazdu godzin.
+  const zlecenieReceivers = eligible
+    .filter((e) => e.contractType === 'zlecenie')
+    .map((e) => ({ employee: e, delta: fairShareDelta(e.id, working, monthConfig, fairShareByEmployee) }))
+    .sort((a, b) => a.delta - b.delta)
+
+  return zlecenieReceivers[0]?.employee ?? null
 }
 
 /** Znajduje jedną zmianę pracownika `employeeId` (ponad celem) i przenosi ją na pracownika, który jej potrzebuje. */
@@ -216,7 +249,8 @@ function giveAwayOneShift(
   monthConfig: MonthConfigForValidation,
   employees: EmployeeForValidation[],
   requests: RequestForValidation[],
-  targetHoursByEmployee: Record<string, number>
+  targetHoursByEmployee: Record<string, number>,
+  fairShareByEmployee: Record<string, number>
 ): boolean {
   const giverDelta = computeQuarterHoursDelta(employeeId, result, monthConfig.days, targetHoursByEmployee)
 
@@ -245,6 +279,7 @@ function giveAwayOneShift(
       requests,
       monthConfig,
       targetHoursByEmployee,
+      fairShareByEmployee,
       duration,
       employeeId
     )
@@ -265,11 +300,16 @@ function receiveOneShift(
   employees: EmployeeForValidation[],
   employeeById: Map<string, EmployeeForValidation>,
   requests: RequestForValidation[],
-  targetHoursByEmployee: Record<string, number>
+  targetHoursByEmployee: Record<string, number>,
+  fairShareByEmployee: Record<string, number>
 ): boolean {
   const me = employeeById.get(employeeId)
   if (!me) return false
   const myDelta = computeQuarterHoursDelta(employeeId, result, monthConfig.days, targetHoursByEmployee)
+  // Odchylenie UoP od celu jest błędem krytycznym walidatora (reguła twarda 6), a nierówność
+  // zlecenia tylko regułą miękką 6 — dlatego UoP poniżej celu może w ostateczności zabrać
+  // zmianę także zleceniobiorcy będącemu poniżej udziału.
+  const mayStarveZlecenie = me.contractType === 'uop' && myDelta < 0
 
   const candidates = result
     .filter((a) => a.employeeId !== employeeId)
@@ -282,11 +322,28 @@ function receiveOneShift(
     .filter((c): c is { assignment: AssignmentForValidation; shift: ShiftForValidation; holder: EmployeeForValidation; duration: number } => c !== null)
     .filter(({ shift, assignment }) => isEligibleForSlot(me, shift, assignment.role, assignment.date, result, requests))
     .filter(({ holder }) => {
-      if (holder.contractType === 'zlecenie') return true
+      if (holder.contractType === 'zlecenie') {
+        // Nie łatamy jednego kosztem drugiego: zmianę oddaje zleceniobiorca w udziale lub powyżej.
+        return mayStarveZlecenie || fairShareDelta(holder.id, result, monthConfig, fairShareByEmployee) >= 0
+      }
       if (targetHoursByEmployee[holder.id] === undefined) return false
       return computeQuarterHoursDelta(holder.id, result, monthConfig.days, targetHoursByEmployee) > 0
     })
-    .sort((x, y) => Math.abs(myDelta + x.duration) - Math.abs(myDelta + y.duration))
+    .map((candidate) => ({
+      ...candidate,
+      // Zleceniobiorca poniżej udziału jest dawcą ostatniego wyboru — sięgamy po niego dopiero,
+      // gdy nie ma nikogo z zapasem, żeby dociągnięcie UoP do celu nie odbywało się jego kosztem.
+      donorPenalty:
+        candidate.holder.contractType === 'zlecenie' &&
+        fairShareDelta(candidate.holder.id, result, monthConfig, fairShareByEmployee) < 0
+          ? 1
+          : 0,
+    }))
+    .sort((x, y) =>
+      x.donorPenalty !== y.donorPenalty
+        ? x.donorPenalty - y.donorPenalty
+        : Math.abs(myDelta + x.duration) - Math.abs(myDelta + y.duration)
+    )
 
   const best = candidates[0]
   if (!best) return false
@@ -295,13 +352,96 @@ function receiveOneShift(
   return true
 }
 
-/** Przenosi zmiany między pracownikami (nie zmieniając obsady slotów), aż każdy UoP trafi dokładnie w cel — o ile to możliwe. */
+/**
+ * Przenosi jedną zmianę z nadwyżkowego zleceniobiorcy na `employeeId` (też zlecenie).
+ * Transfer wyłącznie w obrębie zlecenia — dzięki temu wynik przebiegu UoP zostaje nietknięty
+ * i żaden UoP nie wypada ze swojego celu.
+ */
+function transferBetweenZlecenie(
+  employeeId: string,
+  result: AssignmentForValidation[],
+  monthConfig: MonthConfigForValidation,
+  employeeById: Map<string, EmployeeForValidation>,
+  requests: RequestForValidation[],
+  fairShareByEmployee: Record<string, number>
+): boolean {
+  const me = employeeById.get(employeeId)
+  if (!me) return false
+
+  const candidates = result
+    .filter((a) => a.employeeId !== employeeId)
+    .map((assignment) => {
+      const shift = findShift(findDay(monthConfig, assignment.date), assignment.shiftId)
+      const holder = employeeById.get(assignment.employeeId)
+      return shift && holder ? { assignment, shift, holder } : null
+    })
+    .filter((c): c is { assignment: AssignmentForValidation; shift: ShiftForValidation; holder: EmployeeForValidation } => c !== null)
+    .filter(({ holder }) => holder.contractType === 'zlecenie')
+    .filter(({ shift, assignment }) => isEligibleForSlot(me, shift, assignment.role, assignment.date, result, requests))
+    .map((candidate) => ({
+      ...candidate,
+      holderDelta: fairShareDelta(candidate.holder.id, result, monthConfig, fairShareByEmployee),
+    }))
+    // Oddaje ten, kto ma największą nadwyżkę ponad udziałem; przeniesienie, które samo
+    // zepchnęłoby dawcę poniżej udziału, nie poprawia rozkładu, więc je pomijamy.
+    .filter(({ holderDelta, shift }) => holderDelta - shift.durationQuarterHours >= 0)
+    .sort((x, y) => y.holderDelta - x.holderDelta)
+
+  const best = candidates[0]
+  if (!best) return false
+
+  best.assignment.employeeId = employeeId
+  return true
+}
+
+/** Wyrównuje godziny między pracownikami `zlecenie` do ich sprawiedliwego udziału, nie ruszając przydziałów UoP. */
+function rebalanceFairShare(
+  result: AssignmentForValidation[],
+  monthConfig: MonthConfigForValidation,
+  employees: EmployeeForValidation[],
+  employeeById: Map<string, EmployeeForValidation>,
+  requests: RequestForValidation[],
+  fairShareByEmployee: Record<string, number>
+): void {
+  const zlecenieIds = employees.filter((e) => e.contractType === 'zlecenie').map((e) => e.id)
+  if (zlecenieIds.length < 2) return
+
+  const stuck = new Set<string>()
+  const maxIterations = zlecenieIds.length * monthConfig.days.length * 10 + 100
+
+  for (let i = 0; i < maxIterations; i += 1) {
+    let worstId: string | null = null
+    let worstDeficit = 0
+
+    for (const id of zlecenieIds) {
+      if (stuck.has(id)) continue
+      const deficit = -fairShareDelta(id, result, monthConfig, fairShareByEmployee)
+      if (deficit > worstDeficit) {
+        worstDeficit = deficit
+        worstId = id
+      }
+    }
+
+    if (!worstId) break
+
+    if (!transferBetweenZlecenie(worstId, result, monthConfig, employeeById, requests, fairShareByEmployee)) {
+      stuck.add(worstId)
+    }
+  }
+}
+
+/**
+ * Przenosi zmiany między pracownikami (nie zmieniając obsady slotów): najpierw tak, by każdy UoP
+ * trafił dokładnie w swój cel, potem tak, by zleceniobiorcy zeszli się do sprawiedliwego udziału —
+ * o ile pozwala na to dostępność i uprawnienia.
+ */
 function rebalanceHours(
   assignments: AssignmentForValidation[],
   monthConfig: MonthConfigForValidation,
   employees: EmployeeForValidation[],
   requests: RequestForValidation[],
-  targetHoursByEmployee: Record<string, number>
+  targetHoursByEmployee: Record<string, number>,
+  fairShareByEmployee: Record<string, number>
 ): AssignmentForValidation[] {
   const result = assignments.map((a) => ({ ...a }))
   const employeeById = new Map(employees.map((e) => [e.id, e]))
@@ -309,7 +449,10 @@ function rebalanceHours(
     .filter((e) => e.contractType === 'uop' && targetHoursByEmployee[e.id] !== undefined)
     .map((e) => e.id)
 
-  if (uopTargetIds.length === 0) return result
+  if (uopTargetIds.length === 0) {
+    rebalanceFairShare(result, monthConfig, employees, employeeById, requests, fairShareByEmployee)
+    return result
+  }
 
   const stuck = new Set<string>()
   const maxIterations = uopTargetIds.length * monthConfig.days.length * 10 + 100
@@ -332,11 +475,24 @@ function rebalanceHours(
     const delta = computeQuarterHoursDelta(worstId, result, monthConfig.days, targetHoursByEmployee)
     const moved =
       delta > 0
-        ? giveAwayOneShift(worstId, result, monthConfig, employees, requests, targetHoursByEmployee)
-        : receiveOneShift(worstId, result, monthConfig, employees, employeeById, requests, targetHoursByEmployee)
+        ? giveAwayOneShift(worstId, result, monthConfig, employees, requests, targetHoursByEmployee, fairShareByEmployee)
+        : receiveOneShift(
+            worstId,
+            result,
+            monthConfig,
+            employees,
+            employeeById,
+            requests,
+            targetHoursByEmployee,
+            fairShareByEmployee
+          )
 
     if (!moved) stuck.add(worstId)
   }
+
+  // Drugi przebieg dopiero po ustabilizowaniu UoP — transfery ograniczone do zlecenia,
+  // więc nie mogą wypchnąć żadnego UoP z osiągniętego przed chwilą celu.
+  rebalanceFairShare(result, monthConfig, employees, employeeById, requests, fairShareByEmployee)
 
   return result
 }
@@ -344,7 +500,8 @@ function rebalanceHours(
 /**
  * Deterministyczny krok naprawczy uruchamiany po odpowiedzi AI: czyści niepoprawne przypisania,
  * domyka braki/nadmiary obsady i przenosi zmiany między pracownikami tak, by każdy UoP trafił
- * dokładnie w swój cel godzinowy — o ile pozwala na to dostępność i uprawnienia pracowników.
+ * dokładnie w swój cel godzinowy, a zleceniobiorcy zeszli się do sprawiedliwego udziału —
+ * o ile pozwala na to dostępność i uprawnienia pracowników.
  */
 export function balanceAssignments(
   assignments: AssignmentForValidation[],
@@ -354,11 +511,12 @@ export function balanceAssignments(
   targetHoursByEmployee: Record<string, number>
 ): AssignmentForValidation[] {
   const employeeById = new Map(employees.map((e) => [e.id, e]))
+  const fairShareByEmployee = computeFairShareQuarterHours(monthConfig.days, employees, targetHoursByEmployee)
 
   let result = dropInvalidAssignments(assignments, monthConfig, employeeById, requests)
-  result = trimExcessCoverage(result, monthConfig, employeeById, targetHoursByEmployee)
-  result = fillCoverageGaps(result, monthConfig, employees, requests, targetHoursByEmployee)
-  result = rebalanceHours(result, monthConfig, employees, requests, targetHoursByEmployee)
+  result = trimExcessCoverage(result, monthConfig, employeeById, targetHoursByEmployee, fairShareByEmployee)
+  result = fillCoverageGaps(result, monthConfig, employees, requests, targetHoursByEmployee, fairShareByEmployee)
+  result = rebalanceHours(result, monthConfig, employees, requests, targetHoursByEmployee, fairShareByEmployee)
 
   return result
 }

@@ -256,6 +256,34 @@ describe('DeterministicSchedulerService', () => {
     expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(2)
   })
 
+  it('fills every UoP employee up to target before falling back to zlecenie, even under a tight step budget', async () => {
+    // 6 dni x 1 slot = 6 jednostek. Pula: 3 UoP (cel 8h = 1 zmiana każdy) + 3 zlecenie.
+    // Budżet 3 kroków wystarcza fazie 1 (tylko UoP, osobny budżet) na obsadzenie
+    // wszystkich trzech UoP niezależnie od tego, ile slotów zdąży dobić faza 2 —
+    // gwarancja "UoP najpierw" nie zależy od tego, ile zlecenie zdąży się zmieścić.
+    const dates = ['2024-10-01', '2024-10-02', '2024-10-03', '2024-10-04', '2024-10-05', '2024-10-06']
+    const monthConfig: MonthConfigForValidation = {
+      monthValue: '2024-10',
+      days: dates.map((date) => ({ date, isClosed: false, shifts: [shift({ id: 'day', requiredCashierCount: 1, durationQuarterHours: 32 })] })),
+    }
+    const employees = [
+      employee({ id: 'uop-a', contractType: 'uop' }),
+      employee({ id: 'uop-b', contractType: 'uop' }),
+      employee({ id: 'uop-c', contractType: 'uop' }),
+      employee({ id: 'zlecenie-a', contractType: 'zlecenie' }),
+      employee({ id: 'zlecenie-b', contractType: 'zlecenie' }),
+      employee({ id: 'zlecenie-c', contractType: 'zlecenie' }),
+    ]
+    const targetHoursByEmployee = { 'uop-a': 8, 'uop-b': 8, 'uop-c': 8 }
+    const service = new DeterministicSchedulerService({ maxAttempts: 1, maxStepsPerAttempt: 3 })
+
+    const result = await service.generateWithRetry({ monthConfig, employees, requests: [], targetHoursByEmployee })
+
+    for (const uopId of ['uop-a', 'uop-b', 'uop-c']) {
+      expect(result.assignments.some((a) => a.employeeId === uopId)).toBe(true)
+    }
+  })
+
   it('returns a result without throwing or hanging when the step budget is exhausted mid-search', async () => {
     const monthConfig: MonthConfigForValidation = {
       monthValue: '2024-10',
